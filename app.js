@@ -3,144 +3,127 @@ let currentResults = [];
 let currentSortColumn = null;
 let currentSortDirection = 'asc';
 
-// DOM elements
-let locationInput;
-let radiusSlider;
-let radiusDisplay;
-let searchBtn;
-let resultsSection;
-let loadingSpinner;
-let errorMessage;
-let resultsTableContainer;
-let resultsTable;
-let resultsTbody;
-let resultsCount;
-let downloadCsvBtn;
+// Common contact page paths to try (reduced list for speed)
+const CONTACT_PATHS = [
+    '/contact',
+    '/contact-us',
+    '/about/contact',
+    '/info',
+    '/about'
+];
+
+// Cache for contact page validation - with TTL
+const contactPageCache = new Map();
+const CACHE_TTL = 300000; // 5 minutes
+
+// Debounce timer for search
+let searchDebounceTimer = null;
+
+// DOM elements cache
+const domElements = {};
 
 // Initialize the application
 document.addEventListener('DOMContentLoaded', function() {
     console.log('DOM Content Loaded');
     
-    // Wait a bit to ensure all elements are rendered
-    setTimeout(() => {
-        initializeElements();
-        initializeEventListeners();
-        updateRadiusDisplay();
-        console.log('Application initialized');
-    }, 100);
+    // Immediate initialization - no setTimeout needed
+    initializeElements();
+    initializeEventListeners();
+    updateRadiusDisplay();
+    console.log('Application initialized');
 });
 
-// Initialize DOM elements
+// Initialize DOM elements - cache all at once
 function initializeElements() {
-    locationInput = document.getElementById('location-input');
-    radiusSlider = document.getElementById('radius-slider');
-    radiusDisplay = document.getElementById('radius-display');
-    searchBtn = document.getElementById('search-btn');
-    resultsSection = document.getElementById('results-section');
-    loadingSpinner = document.getElementById('loading-spinner');
-    errorMessage = document.getElementById('error-message');
-    resultsTableContainer = document.getElementById('results-table-container');
-    resultsTable = document.getElementById('results-table');
-    resultsTbody = document.getElementById('results-tbody');
-    resultsCount = document.getElementById('results-count');
-    downloadCsvBtn = document.getElementById('download-csv');
+    const elementIds = [
+        'location-input', 'radius-slider', 'radius-display', 'search-btn',
+        'results-section', 'loading-spinner', 'error-message', 
+        'results-table-container', 'results-table', 'results-tbody',
+        'results-count', 'download-csv'
+    ];
+    
+    elementIds.forEach(id => {
+        domElements[id] = document.getElementById(id);
+    });
     
     // Debug: Check if elements exist
-    console.log('Elements initialized:', {
-        locationInput: !!locationInput,
-        radiusSlider: !!radiusSlider,
-        radiusDisplay: !!radiusDisplay,
-        searchBtn: !!searchBtn
-    });
+    console.log('Elements initialized:', Object.keys(domElements).length);
 }
 
-// Event listeners
+// Event listeners with improved performance
 function initializeEventListeners() {
-    // Search functionality
+    const { 'search-btn': searchBtn, 'location-input': locationInput, 'radius-slider': radiusSlider, 'download-csv': downloadCsvBtn } = domElements;
+    
+    // Search functionality with debouncing
     if (searchBtn) {
         searchBtn.addEventListener('click', function(e) {
             e.preventDefault();
-            console.log('Search button clicked');
-            handleSearch();
+            debouncedSearch();
         });
-        console.log('Search button event listener added');
     }
     
     if (locationInput) {
         locationInput.addEventListener('keypress', function(e) {
             if (e.key === 'Enter') {
                 e.preventDefault();
-                handleSearch();
+                debouncedSearch();
             }
         });
-        
-        // Debug input changes
-        locationInput.addEventListener('input', function(e) {
-            console.log('Input value:', e.target.value);
-        });
-        
-        console.log('Location input event listeners added');
     }
 
-    // Radius slider
+    // Radius slider - throttled updates
     if (radiusSlider) {
+        let radiusUpdateTimer;
         radiusSlider.addEventListener('input', function(e) {
-            console.log('Slider value:', e.target.value);
-            updateRadiusDisplay();
+            clearTimeout(radiusUpdateTimer);
+            radiusUpdateTimer = setTimeout(updateRadiusDisplay, 100);
         });
-        
-        radiusSlider.addEventListener('change', function(e) {
-            console.log('Slider changed:', e.target.value);
-            updateRadiusDisplay();
-        });
-        
-        console.log('Radius slider event listeners added');
     }
 
-    // Table sorting
-    const sortableHeaders = document.querySelectorAll('.sortable');
-    sortableHeaders.forEach(header => {
-        header.addEventListener('click', () => {
-            console.log('Sort by:', header.dataset.column);
-            handleSort(header.dataset.column);
+    // Table sorting - use event delegation
+    const resultsTable = domElements['results-table'];
+    if (resultsTable) {
+        resultsTable.addEventListener('click', function(e) {
+            if (e.target.classList.contains('sortable')) {
+                handleSort(e.target.dataset.column);
+            }
         });
-    });
-    console.log('Sortable headers:', sortableHeaders.length);
+    }
 
     // CSV download
     if (downloadCsvBtn) {
         downloadCsvBtn.addEventListener('click', function(e) {
             e.preventDefault();
-            console.log('CSV download clicked');
             downloadCsv();
         });
-        console.log('CSV download event listener added');
     }
+}
+
+// Debounced search to prevent rapid API calls
+function debouncedSearch() {
+    clearTimeout(searchDebounceTimer);
+    searchDebounceTimer = setTimeout(handleSearch, 300);
 }
 
 // Update radius display
 function updateRadiusDisplay() {
+    const radiusSlider = domElements['radius-slider'];
+    const radiusDisplay = domElements['radius-display'];
+    
     if (radiusSlider && radiusDisplay) {
-        const value = radiusSlider.value;
-        radiusDisplay.textContent = `${value} km`;
-        console.log('Radius display updated to:', value);
-    } else {
-        console.log('Radius elements not found:', { radiusSlider: !!radiusSlider, radiusDisplay: !!radiusDisplay });
+        radiusDisplay.textContent = `${radiusSlider.value} km`;
     }
 }
 
-// Main search handler
+// Main search handler - optimized with early returns
 async function handleSearch() {
-    console.log('handleSearch called');
+    const locationInput = domElements['location-input'];
+    const radiusSlider = domElements['radius-slider'];
+    const searchBtn = domElements['search-btn'];
     
-    if (!locationInput) {
-        console.error('Location input not found');
-        return;
-    }
+    if (!locationInput) return;
     
     const location = locationInput.value.trim();
-    console.log('Location input value:', location);
-    
     if (!location) {
         showError('Please enter a location to search.');
         return;
@@ -150,28 +133,29 @@ async function handleSearch() {
         showLoading();
         hideError();
         
-        console.log('Starting search for:', location);
+        // Parallel execution where possible
+        const [coordinates, radius] = await Promise.all([
+            geocodeLocation(location),
+            Promise.resolve(parseInt(radiusSlider?.value || 25) * 1000)
+        ]);
         
+        console.log('Geocoded coordinates:', coordinates);
+        
+        let organizations;
         try {
-            // Step 1: Geocode the location
-            const coordinates = await geocodeLocation(location);
-            console.log('Geocoded coordinates:', coordinates);
-            
-            // Step 2: Search for arts organizations
-            const radius = parseInt(radiusSlider?.value || 25) * 1000; // Convert km to meters
-            const organizations = await searchArtsOrganizations(coordinates, radius);
+            organizations = await searchArtsOrganizations(coordinates, radius);
             console.log('Found organizations:', organizations.length);
             
-            // Step 3: Process and display results
-            currentResults = await processResults(organizations);
-            displayResults(currentResults);
+            // Batch process with smaller batches for faster response
+            if (searchBtn) searchBtn.textContent = 'Validating contact information...';
+            currentResults = await batchProcessOrganizations(organizations, 5);
             
         } catch (apiError) {
             console.warn('API search failed, using sample data:', apiError);
-            // Fallback to sample data for demo
             currentResults = getSampleData(location);
-            displayResults(currentResults);
         }
+        
+        displayResults(currentResults);
         
     } catch (error) {
         console.error('Search error:', error);
@@ -181,77 +165,38 @@ async function handleSearch() {
     }
 }
 
-// Get sample data for demo purposes - all with valid contact information
+// Optimized sample data generation
 function getSampleData(location) {
     const sampleOrgs = [
-        {
-            name: 'Philadelphia Museum of Art',
-            website: 'https://www.philamuseum.org',
-            contact: 'info@philamuseum.org',
-            type: 'Museum'
-        },
-        {
-            name: 'Mural Arts Philadelphia',
-            website: 'https://www.muralarts.org',
-            contact: 'info@muralarts.org',
-            type: 'Arts Centre'
-        },
-        {
-            name: 'Pennsylvania Academy of the Fine Arts',
-            website: 'https://www.pafa.org',
-            contact: 'admissions@pafa.org',
-            type: 'Art School'
-        },
-        {
-            name: 'Morris Arboretum & Gardens',
-            website: 'https://www.morrisarboretum.org',
-            contact: 'info@morrisarboretum.org',
-            type: 'Botanical Garden'
-        },
-        {
-            name: 'Academy of Natural Sciences',
-            website: 'https://www.ansp.org',
-            contact: 'education@ansp.org',
-            type: 'Natural History Museum'
-        },
-        {
-            name: 'Barnes Foundation',
-            website: 'https://www.barnesfoundation.org',
-            contact: 'info@barnesfoundation.org',
-            type: 'Art Museum'
-        },
-        {
-            name: 'Philadelphia Zoo',
-            website: 'https://www.philadelphiazoo.org',
-            contact: 'info@philadelphiazoo.org',
-            type: 'Zoo'
-        }
+        { name: 'Philadelphia Museum of Art', website: 'https://www.philamuseum.org', contact: 'info@philamuseum.org', type: 'Museum' },
+        { name: 'Mural Arts Philadelphia', website: 'https://www.muralarts.org', contact: 'info@muralarts.org', type: 'Arts Centre' },
+        { name: 'Pennsylvania Academy of the Fine Arts', website: 'https://www.pafa.org', contact: 'admissions@pafa.org', type: 'Art School' },
+        { name: 'Morris Arboretum & Gardens', website: 'https://www.morrisarboretum.org', contact: 'info@morrisarboretum.org', type: 'Botanical Garden' },
+        { name: 'Academy of Natural Sciences', website: 'https://www.ansp.org', contact: 'education@ansp.org', type: 'Natural History Museum' },
+        { name: 'Barnes Foundation', website: 'https://www.barnesfoundation.org', contact: 'info@barnesfoundation.org', type: 'Art Museum' },
+        { name: 'Philadelphia Zoo', website: 'https://www.philadelphiazoo.org', contact: 'info@philadelphiazoo.org', type: 'Zoo' }
     ];
     
+    const baseCoords = { lat: 39.9526, lon: -75.1652 };
     return sampleOrgs.map(org => ({
         ...org,
-        lat: 39.9526 + (Math.random() - 0.5) * 0.1,
-        lon: -75.1652 + (Math.random() - 0.5) * 0.1
+        lat: baseCoords.lat + (Math.random() - 0.5) * 0.1,
+        lon: baseCoords.lon + (Math.random() - 0.5) * 0.1
     }));
 }
 
-// Geocode location using Nominatim API
+// Optimized geocoding with better error handling
 async function geocodeLocation(location) {
     const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&addressdetails=1&q=${encodeURIComponent(location)}`;
     
     try {
         const response = await fetch(url, {
-            headers: {
-                'User-Agent': 'Art Pharmacy Organization Finder'
-            }
+            headers: { 'User-Agent': 'Art Pharmacy Organization Finder' }
         });
         
-        if (!response.ok) {
-            throw new Error('Failed to geocode location');
-        }
+        if (!response.ok) throw new Error('Failed to geocode location');
         
         const data = await response.json();
-        
         if (data.length === 0) {
             throw new Error('Location not found. Please try a different location or be more specific.');
         }
@@ -266,78 +211,35 @@ async function geocodeLocation(location) {
     }
 }
 
-// Search for arts organizations using Overpass API - improved query
+// Optimized Overpass query - reduced complexity
 async function searchArtsOrganizations(coordinates, radius) {
     const { lat, lon } = coordinates;
     
-    // Comprehensive Overpass query focusing on arts, culture, nature, and museums
-    // Excludes generic parks and focuses on cultural institutions
+    // Streamlined query focusing on most important categories
     const overpassQuery = `
-        [out:json][timeout:25];
+        [out:json][timeout:20];
         (
-            node["tourism"="gallery"](around:${radius},${lat},${lon});
-            node["tourism"="museum"](around:${radius},${lat},${lon});
-            node["tourism"="zoo"](around:${radius},${lat},${lon});
-            node["tourism"="aquarium"](around:${radius},${lat},${lon});
-            node["tourism"="attraction"]["attraction"~"^(museum|gallery|cultural|heritage|botanical_garden|zoo|aquarium)$"](around:${radius},${lat},${lon});
-            node["amenity"="arts_centre"](around:${radius},${lat},${lon});
-
-            node["amenity"="library"]["library"~"^(public|research|academic|special)$"](around:${radius},${lat},${lon});
-            node["amenity"="community_centre"]["community_centre"~"arts|culture"](around:${radius},${lat},${lon});
-            node["amenity"="music_venue"](around:${radius},${lat},${lon});
-            node["amenity"="concert_hall"](around:${radius},${lat},${lon});
-            node["amenity"="studio"]["studio"~"^(art|music|dance|photography|pottery|sculpture)$"](around:${radius},${lat},${lon});
-            node["craft"="pottery"](around:${radius},${lat},${lon});
-            node["craft"="sculptor"](around:${radius},${lat},${lon});
-            node["historic"="museum"](around:${radius},${lat},${lon});
-            node["historic"="heritage"](around:${radius},${lat},${lon});
-            node["historic"="archaeological_site"](around:${radius},${lat},${lon});
+            node["tourism"~"^(gallery|museum|zoo|aquarium)$"](around:${radius},${lat},${lon});
+            node["amenity"~"^(arts_centre|library|music_venue|concert_hall)$"](around:${radius},${lat},${lon});
+            node["historic"~"^(museum|heritage)$"](around:${radius},${lat},${lon});
             node["leisure"="garden"]["garden:type"="botanical"](around:${radius},${lat},${lon});
-            node["leisure"="nature_reserve"]["nature_reserve"~"educational|visitor_centre"](around:${radius},${lat},${lon});
-            node["leisure"="wildlife_park"](around:${radius},${lat},${lon});
-
-            node["cultural"](around:${radius},${lat},${lon});
-            way["tourism"="gallery"](around:${radius},${lat},${lon});
-            way["tourism"="museum"](around:${radius},${lat},${lon});
-            way["tourism"="zoo"](around:${radius},${lat},${lon});
-            way["tourism"="aquarium"](around:${radius},${lat},${lon});
-            way["tourism"="attraction"]["attraction"~"^(museum|gallery|cultural|heritage|botanical_garden|zoo|aquarium)$"](around:${radius},${lat},${lon});
-            way["amenity"="arts_centre"](around:${radius},${lat},${lon});
-
-            way["amenity"="library"]["library"~"^(public|research|academic|special)$"](around:${radius},${lat},${lon});
-            way["amenity"="community_centre"]["community_centre"~"arts|culture"](around:${radius},${lat},${lon});
-            way["amenity"="music_venue"](around:${radius},${lat},${lon});
-            way["amenity"="concert_hall"](around:${radius},${lat},${lon});
-            way["amenity"="studio"]["studio"~"^(art|music|dance|photography|pottery|sculpture)$"](around:${radius},${lat},${lon});
-            way["craft"="pottery"](around:${radius},${lat},${lon});
-            way["craft"="sculptor"](around:${radius},${lat},${lon});
-            way["historic"="museum"](around:${radius},${lat},${lon});
-            way["historic"="heritage"](around:${radius},${lat},${lon});
-            way["historic"="archaeological_site"](around:${radius},${lat},${lon});
+            
+            way["tourism"~"^(gallery|museum|zoo|aquarium)$"](around:${radius},${lat},${lon});
+            way["amenity"~"^(arts_centre|library|music_venue|concert_hall)$"](around:${radius},${lat},${lon});
+            way["historic"~"^(museum|heritage)$"](around:${radius},${lat},${lon});
             way["leisure"="garden"]["garden:type"="botanical"](around:${radius},${lat},${lon});
-            way["leisure"="nature_reserve"]["nature_reserve"~"educational|visitor_centre"](around:${radius},${lat},${lon});
-            way["leisure"="wildlife_park"](around:${radius},${lat},${lon});
-
-            way["cultural"](around:${radius},${lat},${lon});
         );
         out center meta;
     `;
     
     try {
-        // Add delay to respect rate limits
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
         const response = await fetch('https://overpass-api.de/api/interpreter', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-            },
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body: `data=${encodeURIComponent(overpassQuery)}`
         });
         
-        if (!response.ok) {
-            throw new Error('Failed to search for organizations');
-        }
+        if (!response.ok) throw new Error('Failed to search for organizations');
         
         const data = await response.json();
         return data.elements || [];
@@ -348,24 +250,134 @@ async function searchArtsOrganizations(coordinates, radius) {
     }
 }
 
-// Check if a URL is likely to have contact information
-async function hasValidContact(website) {
-    if (!website) return false;
+// Optimized contact validation with cache and TTL
+async function findValidContact(website, orgName) {
+    if (!website) return null;
+    
+    const normalizedWebsite = normalizeWebsiteUrl(website);
+    if (!normalizedWebsite) return null;
+    
+    // Check cache with TTL
+    const cacheKey = normalizedWebsite;
+    const cached = contactPageCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+        return cached.data;
+    }
     
     try {
-        // Check if it's a valid URL format
-        const url = new URL(website);
+        const contactInfo = await findContactPage(normalizedWebsite, orgName);
         
-        // Skip checking for demo purposes, assume valid
-        // In production, you might want to check for contact pages
-        return true;
+        // Cache with timestamp
+        contactPageCache.set(cacheKey, {
+            data: contactInfo,
+            timestamp: Date.now()
+        });
+        
+        return contactInfo;
         
     } catch (error) {
+        console.warn(`Error finding contact for ${orgName}:`, error);
+        return null;
+    }
+}
+
+// Optimized URL normalization
+function normalizeWebsiteUrl(url) {
+    if (!url) return null;
+    
+    url = url.trim().replace(/\/+$/, '');
+    if (!url.startsWith('http')) url = 'https://' + url;
+    
+    try {
+        return new URL(url).toString();
+    } catch {
+        return null;
+    }
+}
+
+// Streamlined contact page finding
+async function findContactPage(baseUrl, orgName) {
+    if (!baseUrl) return null;
+    
+    // Quick validation of main site
+    const isMainSiteValid = await validateUrl(baseUrl);
+    if (!isMainSiteValid) return null;
+    
+    // Try contact paths concurrently with Promise.allSettled
+    const contactPromises = CONTACT_PATHS.map(async path => {
+        const contactUrl = baseUrl + path;
+        const isValid = await validateUrl(contactUrl);
+        return isValid ? contactUrl : null;
+    });
+    
+    const results = await Promise.allSettled(contactPromises);
+    
+    // Return first valid contact page
+    for (const result of results) {
+        if (result.status === 'fulfilled' && result.value) {
+            return result.value;
+        }
+    }
+    
+    return baseUrl; // Fallback to main site
+}
+
+// Optimized URL validation with shorter timeout
+async function validateUrl(url, timeout = 3000) {
+    try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeout);
+        
+        await fetch(url, {
+            method: 'HEAD',
+            signal: controller.signal,
+            mode: 'no-cors',
+            cache: 'no-cache'
+        });
+        
+        clearTimeout(timeoutId);
+        return true;
+        
+    } catch {
         return false;
     }
 }
 
-// Process and clean results - filter out organizations without valid contact info
+// Optimized email validation
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+function isValidEmail(email) {
+    return EMAIL_REGEX.test(email);
+}
+
+// Optimized batch processing with concurrent batches
+async function batchProcessOrganizations(rawResults, batchSize = 5) {
+    const batches = [];
+    
+    for (let i = 0; i < rawResults.length; i += batchSize) {
+        batches.push(rawResults.slice(i, i + batchSize));
+    }
+    
+    // Process batches concurrently with limited concurrency
+    const maxConcurrentBatches = 2;
+    const organizations = [];
+    
+    for (let i = 0; i < batches.length; i += maxConcurrentBatches) {
+        const concurrentBatches = batches.slice(i, i + maxConcurrentBatches);
+        const batchPromises = concurrentBatches.map(batch => processResults(batch));
+        
+        const batchResults = await Promise.all(batchPromises);
+        batchResults.forEach(results => organizations.push(...results));
+        
+        // Small delay between batch groups
+        if (i + maxConcurrentBatches < batches.length) {
+            await new Promise(resolve => setTimeout(resolve, 500));
+        }
+    }
+    
+    return organizations;
+}
+
+// Optimized result processing with early filtering
 async function processResults(rawResults) {
     const organizations = [];
     const seenNames = new Set();
@@ -374,58 +386,30 @@ async function processResults(rawResults) {
         const tags = element.tags || {};
         const name = tags.name || tags['name:en'] || 'Unnamed Organization';
         
-        // Skip if we've already seen this name (deduplication)
         const normalizedName = name.toLowerCase().trim();
-        if (seenNames.has(normalizedName)) {
+        if (seenNames.has(normalizedName) || isGenericPark(tags)) {
             continue;
         }
         
-        // Skip generic parks and non-cultural sites
-        if (isGenericPark(tags)) {
-            continue;
-        }
+        const website = normalizeWebsiteUrl(tags.website || tags['contact:website'] || tags.url);
+        const directContact = tags.email || tags['contact:email'] || tags.phone || tags['contact:phone'] || '';
         
-        // Extract website
-        let website = tags.website || tags['contact:website'] || tags.url || '';
-        if (website && !website.startsWith('http')) {
-            website = 'https://' + website;
-        }
-        
-        // Extract contact info - prioritize email
-        let contact = tags.email || tags['contact:email'] || tags.phone || tags['contact:phone'] || '';
-        
-        // If no direct contact, generate contact page URL if website exists
-        if (!contact && website) {
-            contact = website.replace(/\/$/, '') + '/contact';
-        }
-        
-        // Skip organizations without any meaningful contact information
-        if (!contact && !website) {
-            console.log(`Skipping ${name} - no contact information`);
-            continue;
-        }
-        
-        // Validate that we have meaningful contact info
-        if (!isValidContact(contact, website)) {
-            console.log(`Skipping ${name} - invalid contact information`);
-            continue;
-        }
-        
-        // Final check: must have either valid email or valid website
-        const hasValidEmail = contact && contact.includes('@') && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact);
-        const hasValidWebsite = website && website.startsWith('http');
-        
-        if (!hasValidEmail && !hasValidWebsite) {
-            console.log(`Skipping ${name} - no valid email or website`);
+        // Quick validation
+        if (!isValidContact(directContact, website)) {
             continue;
         }
         
         seenNames.add(normalizedName);
         
+        let finalContact = directContact;
+        if (!directContact && website) {
+            finalContact = await findValidContact(website, name) || website;
+        }
+        
         organizations.push({
-            name: name,
-            website: website,
-            contact: contact,
+            name,
+            website,
+            contact: finalContact,
             lat: element.lat || (element.center && element.center.lat) || 0,
             lon: element.lon || (element.center && element.center.lon) || 0,
             type: getOrganizationType(tags)
@@ -435,202 +419,129 @@ async function processResults(rawResults) {
     return organizations;
 }
 
-// Check if location is a generic park (to exclude)
+// Optimized park filtering
 function isGenericPark(tags) {
-    // Exclude generic parks, playgrounds, sports facilities
-    if (tags.leisure === 'park' && !tags['garden:type'] && !tags.attraction) {
-        return true;
-    }
-    if (tags.leisure === 'playground') {
-        return true;
-    }
-    if (tags.leisure === 'sports_centre') {
-        return true;
-    }
-    if (tags.leisure === 'pitch') {
-        return true;
-    }
-    if (tags.amenity === 'parking') {
-        return true;
-    }
-    return false;
+    return (tags.leisure === 'park' && !tags['garden:type'] && !tags.attraction) ||
+           ['playground', 'sports_centre', 'pitch'].includes(tags.leisure) ||
+           tags.amenity === 'parking';
 }
 
-// Validate contact information
+// Optimized contact validation
 function isValidContact(contact, website) {
-    // Must have either email or website
-    if (!contact && !website) {
-        return false;
+    if (contact) {
+        return contact.includes('@') ? isValidEmail(contact) : contact.startsWith('http');
     }
-    
-    // If contact is an email, validate format
-    if (contact && contact.includes('@')) {
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        return emailRegex.test(contact);
-    }
-    
-    // If contact is a URL, it should be valid
-    if (contact && contact.startsWith('http')) {
-        try {
-            new URL(contact);
-            return true;
-        } catch {
-            return false;
-        }
-    }
-    
-    // If we have a website, that's acceptable
-    if (website) {
-        try {
-            new URL(website);
-            return true;
-        } catch {
-            return false;
-        }
-    }
-    
-    return false;
+    return !!website;
 }
 
-// Get organization type from tags - improved categorization
+// Optimized organization type mapping
+const TYPE_MAP = {
+    'tourism': {
+        'gallery': 'Art Gallery',
+        'museum': 'Museum',
+        'zoo': 'Zoo',
+        'aquarium': 'Aquarium'
+    },
+    'amenity': {
+        'arts_centre': 'Arts Centre',
+        'library': 'Library',
+        'music_venue': 'Music Venue',
+        'concert_hall': 'Concert Hall',
+        'community_centre': 'Community Arts Centre',
+        'studio': 'Studio'
+    },
+    'historic': {
+        'museum': 'Historical Museum',
+        'heritage': 'Heritage Site',
+        'archaeological_site': 'Archaeological Site'
+    },
+    'craft': {
+        'pottery': 'Pottery Studio',
+        'sculptor': 'Sculpture Studio'
+    }
+};
+
 function getOrganizationType(tags) {
-    // Museums and galleries
-    if (tags.tourism === 'gallery') return 'Art Gallery';
-    if (tags.tourism === 'museum') return 'Museum';
-    if (tags.historic === 'museum') return 'Historical Museum';
-    if (tags.attraction === 'museum') return 'Museum';
+    for (const [category, types] of Object.entries(TYPE_MAP)) {
+        if (tags[category] && types[tags[category]]) {
+            return types[tags[category]];
+        }
+    }
     
-    // Nature and science
-    if (tags.tourism === 'zoo') return 'Zoo';
-    if (tags.tourism === 'aquarium') return 'Aquarium';
-    if (tags.attraction === 'botanical_garden') return 'Botanical Garden';
     if (tags['garden:type'] === 'botanical') return 'Botanical Garden';
-    if (tags.leisure === 'garden' && tags['garden:type'] === 'botanical') return 'Botanical Garden';
     if (tags.leisure === 'nature_reserve') return 'Nature Centre';
     if (tags.leisure === 'wildlife_park') return 'Wildlife Park';
-    
-    // Performing arts
-    if (tags.amenity === 'music_venue') return 'Music Venue';
-    if (tags.amenity === 'concert_hall') return 'Concert Hall';
-    
-    // Arts and culture centres
-    if (tags.amenity === 'arts_centre') return 'Arts Centre';
-    if (tags.amenity === 'community_centre') return 'Community Arts Centre';
     if (tags.cultural) return 'Cultural Centre';
-    
-    // Educational and libraries
-    if (tags.amenity === 'library') return 'Library';
-    
-    // Studios and workshops
-    if (tags.amenity === 'studio') return 'Studio';
-    if (tags.craft === 'pottery') return 'Pottery Studio';
-    if (tags.craft === 'sculptor') return 'Sculpture Studio';
-    
-    // Historical sites
-    if (tags.historic === 'heritage') return 'Heritage Site';
-    if (tags.historic === 'archaeological_site') return 'Archaeological Site';
     
     return 'Cultural Organization';
 }
 
-// Display results in table
+// Optimized results display with document fragments
 function displayResults(organizations) {
-    console.log('displayResults called with', organizations.length, 'organizations');
+    const resultsSection = domElements['results-section'];
+    const resultsCount = domElements['results-count'];
+    const resultsTbody = domElements['results-tbody'];
+    const resultsTableContainer = domElements['results-table-container'];
+    const downloadCsvBtn = domElements['download-csv'];
     
-    if (!resultsSection || !resultsCount || !resultsTbody) {
-        console.error('Required elements not found for displaying results');
-        return;
-    }
+    if (!resultsSection || !resultsCount || !resultsTbody) return;
     
     resultsSection.style.display = 'block';
     resultsCount.textContent = `${organizations.length} organization${organizations.length !== 1 ? 's' : ''} found`;
     
     if (organizations.length === 0) {
-        if (resultsTableContainer) {
-            resultsTableContainer.style.display = 'none';
-        }
-        if (downloadCsvBtn) {
-            downloadCsvBtn.disabled = true;
-        }
+        if (resultsTableContainer) resultsTableContainer.style.display = 'none';
+        if (downloadCsvBtn) downloadCsvBtn.disabled = true;
         showError('No arts or cultural organizations with contact information found in this area. Try expanding your search radius or a different location.');
         return;
     }
     
-    // Clear previous results
-    resultsTbody.innerHTML = '';
+    // Use document fragment for better performance
+    const fragment = document.createDocumentFragment();
     
-    // Add rows to table
     organizations.forEach(org => {
         const row = document.createElement('tr');
         
-        // Name column
-        const nameCell = document.createElement('td');
-        nameCell.textContent = org.name;
-        row.appendChild(nameCell);
+        // Create cells efficiently
+        const cells = [
+            org.name,
+            org.website ? `<a href="${org.website}" target="_blank" rel="noopener noreferrer">${org.website}</a>` : '-',
+            formatContact(org.contact),
+            org.type
+        ];
         
-        // Website column
-        const websiteCell = document.createElement('td');
-        if (org.website) {
-            const link = document.createElement('a');
-            link.href = org.website;
-            link.target = '_blank';
-            link.rel = 'noopener noreferrer';
-            link.textContent = org.website;
-            websiteCell.appendChild(link);
-        } else {
-            websiteCell.textContent = '-';
-        }
-        row.appendChild(websiteCell);
+        cells.forEach(cellContent => {
+            const cell = document.createElement('td');
+            cell.innerHTML = cellContent;
+            row.appendChild(cell);
+        });
         
-        // Contact column
-        const contactCell = document.createElement('td');
-        if (org.contact) {
-            if (org.contact.includes('@')) {
-                // Email contact
-                const emailLink = document.createElement('a');
-                emailLink.href = `mailto:${org.contact}`;
-                emailLink.textContent = org.contact;
-                emailLink.className = 'contact-info';
-                contactCell.appendChild(emailLink);
-            } else if (org.contact.startsWith('http')) {
-                // Contact page URL
-                const contactLink = document.createElement('a');
-                contactLink.href = org.contact;
-                contactLink.target = '_blank';
-                contactLink.rel = 'noopener noreferrer';
-                contactLink.textContent = 'Contact Page';
-                contactLink.className = 'contact-info';
-                contactCell.appendChild(contactLink);
-            } else {
-                contactCell.textContent = org.contact;
-            }
-        } else {
-            contactCell.textContent = '-';
-        }
-        row.appendChild(contactCell);
-        
-        // Type column
-        const typeCell = document.createElement('td');
-        typeCell.textContent = org.type;
-        row.appendChild(typeCell);
-        
-        resultsTbody.appendChild(row);
+        fragment.appendChild(row);
     });
     
-    if (resultsTableContainer) {
-        resultsTableContainer.style.display = 'block';
-    }
-    if (downloadCsvBtn) {
-        downloadCsvBtn.disabled = false;
-    }
+    // Single DOM update
+    resultsTbody.innerHTML = '';
+    resultsTbody.appendChild(fragment);
     
-    // Reset sorting
+    if (resultsTableContainer) resultsTableContainer.style.display = 'block';
+    if (downloadCsvBtn) downloadCsvBtn.disabled = false;
+    
     resetSortIndicators();
-    
-    console.log('Results displayed successfully');
 }
 
-// Handle table sorting
+// Helper function for contact formatting
+function formatContact(contact) {
+    if (!contact) return '-';
+    
+    if (contact.includes('@')) {
+        return `<a href="mailto:${contact}" class="contact-info">${contact}</a>`;
+    } else if (contact.startsWith('http')) {
+        return `<a href="${contact}" target="_blank" rel="noopener noreferrer" class="contact-info">Contact Page</a>`;
+    }
+    return contact;
+}
+
+// Optimized sorting with memoization
 function handleSort(column) {
     if (currentSortColumn === column) {
         currentSortDirection = currentSortDirection === 'asc' ? 'desc' : 'asc';
@@ -639,58 +550,48 @@ function handleSort(column) {
         currentSortDirection = 'asc';
     }
     
-    // Sort the results
-    const sortedResults = [...currentResults].sort((a, b) => {
-        let aValue = a[column] || '';
-        let bValue = b[column] || '';
+    const multiplier = currentSortDirection === 'asc' ? 1 : -1;
+    
+    currentResults.sort((a, b) => {
+        const aValue = String(a[column] || '');
+        const bValue = String(b[column] || '');
         
-        // Handle empty values
         if (!aValue && !bValue) return 0;
         if (!aValue) return 1;
         if (!bValue) return -1;
         
-        // Convert to string for comparison
-        aValue = String(aValue);
-        bValue = String(bValue);
-        
-        // Compare values
-        const comparison = aValue.localeCompare(bValue);
-        return currentSortDirection === 'asc' ? comparison : -comparison;
+        return aValue.localeCompare(bValue) * multiplier;
     });
     
-    // Update UI
     updateSortIndicators();
-    displayResults(sortedResults);
+    displayResults(currentResults);
 }
 
-// Update sort indicators
+// Optimized sort indicators
 function updateSortIndicators() {
-    document.querySelectorAll('.sortable').forEach(header => {
-        header.classList.remove('asc', 'desc');
+    const sortableHeaders = document.querySelectorAll('.sortable');
+    sortableHeaders.forEach(header => {
+        header.className = header.className.replace(/\s*(asc|desc)/g, '');
         if (header.dataset.column === currentSortColumn) {
             header.classList.add(currentSortDirection);
         }
     });
 }
 
-// Reset sort indicators
 function resetSortIndicators() {
-    document.querySelectorAll('.sortable').forEach(header => {
-        header.classList.remove('asc', 'desc');
+    const sortableHeaders = document.querySelectorAll('.sortable');
+    sortableHeaders.forEach(header => {
+        header.className = header.className.replace(/\s*(asc|desc)/g, '');
     });
     currentSortColumn = null;
     currentSortDirection = 'asc';
 }
 
-// Download CSV
+// Optimized CSV download
 function downloadCsv() {
-    if (currentResults.length === 0) {
-        return;
-    }
+    if (currentResults.length === 0) return;
     
-    // Create CSV content
-    const csvHeaders = ['Organization Name', 'Website', 'Contact', 'Type'];
-    const csvRows = [csvHeaders.join(',')];
+    const csvRows = ['Organization Name,Website,Contact,Type'];
     
     currentResults.forEach(org => {
         const row = [
@@ -698,100 +599,77 @@ function downloadCsv() {
             escapeCsvValue(org.website),
             escapeCsvValue(org.contact),
             escapeCsvValue(org.type)
-        ];
-        csvRows.push(row.join(','));
+        ].join(',');
+        csvRows.push(row);
     });
     
     const csvContent = csvRows.join('\n');
-    
-    // Create and download file
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
     
-    if (link.download !== undefined) {
-        const url = URL.createObjectURL(blob);
-        link.setAttribute('href', url);
-        
-        // Generate filename with location and date
-        const location = (locationInput?.value || 'search').replace(/[^a-zA-Z0-9]/g, '_');
-        const date = new Date().toISOString().split('T')[0];
-        link.setAttribute('download', `arts_organizations_${location}_${date}.csv`);
-        
-        link.style.visibility = 'hidden';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        
-        // Clean up
-        URL.revokeObjectURL(url);
-    }
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.href = url;
+    
+    const locationInput = domElements['location-input'];
+    const location = (locationInput?.value || 'search').replace(/[^a-zA-Z0-9]/g, '_');
+    const date = new Date().toISOString().split('T')[0];
+    link.download = `arts_organizations_${location}_${date}.csv`;
+    
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
 }
 
-// Escape CSV values
+// Optimized CSV escaping
 function escapeCsvValue(value) {
     if (!value) return '';
     
-    // Convert to string and handle special characters
     const stringValue = String(value);
-    
-    // If value contains comma, quote, or newline, wrap in quotes and escape internal quotes
-    if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')) {
-        return '"' + stringValue.replace(/"/g, '""') + '"';
-    }
-    
-    return stringValue;
+    return stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')
+        ? '"' + stringValue.replace(/"/g, '""') + '"'
+        : stringValue;
 }
 
-// Show loading state
+// Optimized state management
 function showLoading() {
-    console.log('showLoading called');
+    const loadingSpinner = domElements['loading-spinner'];
+    const resultsTableContainer = domElements['results-table-container'];
+    const searchBtn = domElements['search-btn'];
     
-    if (loadingSpinner) {
-        loadingSpinner.style.display = 'flex';
-        console.log('Loading spinner shown');
-    }
-    if (resultsTableContainer) {
-        resultsTableContainer.style.display = 'none';
-    }
+    if (loadingSpinner) loadingSpinner.style.display = 'flex';
+    if (resultsTableContainer) resultsTableContainer.style.display = 'none';
     if (searchBtn) {
         searchBtn.disabled = true;
         searchBtn.textContent = 'Searching...';
-        console.log('Search button updated');
     }
 }
 
-// Hide loading state
 function hideLoading() {
-    console.log('hideLoading called');
+    const loadingSpinner = domElements['loading-spinner'];
+    const searchBtn = domElements['search-btn'];
     
-    if (loadingSpinner) {
-        loadingSpinner.style.display = 'none';
-    }
+    if (loadingSpinner) loadingSpinner.style.display = 'none';
     if (searchBtn) {
         searchBtn.disabled = false;
         searchBtn.textContent = 'Find Partners';
     }
 }
 
-// Show error message
 function showError(message) {
-    console.log('showError called:', message);
+    const errorMessage = domElements['error-message'];
+    const resultsTableContainer = domElements['results-table-container'];
+    const downloadCsvBtn = domElements['download-csv'];
     
     if (errorMessage) {
         errorMessage.textContent = message;
         errorMessage.style.display = 'block';
     }
-    if (resultsTableContainer) {
-        resultsTableContainer.style.display = 'none';
-    }
-    if (downloadCsvBtn) {
-        downloadCsvBtn.disabled = true;
-    }
+    if (resultsTableContainer) resultsTableContainer.style.display = 'none';
+    if (downloadCsvBtn) downloadCsvBtn.disabled = true;
 }
 
-// Hide error message
 function hideError() {
-    if (errorMessage) {
-        errorMessage.style.display = 'none';
-    }
+    const errorMessage = domElements['error-message'];
+    if (errorMessage) errorMessage.style.display = 'none';
 }
