@@ -2,130 +2,76 @@
 let currentResults = [];
 let currentSortColumn = null;
 let currentSortDirection = 'asc';
+let elements = {}; // Store all DOM elements
 
-// DOM elements
-let locationInput, radiusSlider, radiusDisplay, searchBtn;
-let resultsSection, loadingContainer, errorMessage, tableContainer, resultsTbody, resultsCount, downloadCsvBtn;
-
-// Initialize the application
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('DOM Content Loaded');
-    initializeElements();
-    initializeEventListeners();
-    updateRadiusDisplay(); // Set initial value
-    console.log('Application initialized');
+// Initialize app
+document.addEventListener('DOMContentLoaded', () => {
+    initializeApp();
 });
 
-function initializeElements() {
-    locationInput = document.getElementById('location-input');
-    radiusSlider = document.getElementById('radius-slider');
-    radiusDisplay = document.getElementById('radius-display');
-    searchBtn = document.getElementById('search-btn');
-    resultsSection = document.getElementById('results-section');
-    loadingContainer = document.getElementById('loading-container');
-    errorMessage = document.getElementById('error-message');
-    tableContainer = document.getElementById('table-container');
-    resultsTbody = document.getElementById('results-tbody');
-    resultsCount = document.getElementById('results-count');
-    downloadCsvBtn = document.getElementById('download-csv');
-    
-    // Debug log to check elements
-    console.log('Elements found:', {
-        locationInput: !!locationInput,
-        radiusSlider: !!radiusSlider,
-        radiusDisplay: !!radiusDisplay,
-        searchBtn: !!searchBtn
-    });
+function initializeApp() {
+    // Get DOM elements
+    elements = {
+        locationInput: document.getElementById('location-input'),
+        radiusSlider: document.getElementById('radius-slider'),
+        radiusDisplay: document.getElementById('radius-display'),
+        searchBtn: document.getElementById('search-btn'),
+        resultsSection: document.getElementById('results-section'),
+        loadingContainer: document.getElementById('loading-container'),
+        errorMessage: document.getElementById('error-message'),
+        tableContainer: document.getElementById('table-container'),
+        resultsTbody: document.getElementById('results-tbody'),
+        resultsCount: document.getElementById('results-count'),
+        downloadCsvBtn: document.getElementById('download-csv')
+    };
+
+    setupEventListeners();
+    updateRadiusDisplay();
 }
 
-function initializeEventListeners() {
-    // Search button
-    if (searchBtn) {
-        searchBtn.addEventListener('click', function(e) {
-            e.preventDefault();
-            console.log('Search button clicked');
-            handleSearch();
+function setupEventListeners() {
+    // Search
+    elements.searchBtn?.addEventListener('click', handleSearch);
+    elements.locationInput?.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') handleSearch();
+    });
+
+    // Slider - multiple approaches for reliability
+    if (elements.radiusSlider) {
+        elements.radiusSlider.addEventListener('input', updateRadiusDisplay);
+        elements.radiusSlider.addEventListener('change', updateRadiusDisplay);
+        elements.radiusSlider.addEventListener('mousemove', (e) => {
+            if (e.buttons === 1) updateRadiusDisplay();
         });
-        console.log('Search button listener added');
     }
     
-    // Location input
-    if (locationInput) {
-        locationInput.addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                handleSearch();
-            }
-        });
-        console.log('Location input listener added');
-    }
-
-    // Radius slider - multiple event listeners for better compatibility
-    if (radiusSlider) {
-        radiusSlider.addEventListener('input', function(e) {
-            console.log('Slider input event:', e.target.value);
-            updateRadiusDisplay();
-        });
-        
-        radiusSlider.addEventListener('change', function(e) {
-            console.log('Slider change event:', e.target.value);
-            updateRadiusDisplay();
-        });
-        
-        // Additional listener for mouse events
-        radiusSlider.addEventListener('mousemove', function(e) {
-            if (e.buttons === 1) { // Only if mouse is pressed
-                updateRadiusDisplay();
-            }
-        });
-        
-        console.log('Radius slider listeners added');
-    } else {
-        console.error('Radius slider not found!');
-    }
+    // Event delegation backup for slider
+    document.addEventListener('input', (e) => {
+        if (e.target?.id === 'radius-slider') updateRadiusDisplay();
+    });
 
     // Table sorting
     document.querySelectorAll('.sortable').forEach(header => {
-        header.addEventListener('click', () => {
-            console.log('Sort by:', header.dataset.column);
-            handleSort(header.dataset.column);
-        });
+        header.addEventListener('click', () => handleSort(header.dataset.column));
     });
 
     // CSV download
-    if (downloadCsvBtn) {
-        downloadCsvBtn.addEventListener('click', function(e) {
-            e.preventDefault();
-            downloadCsv();
-        });
-        console.log('Download CSV listener added');
-    }
+    elements.downloadCsvBtn?.addEventListener('click', downloadCsv);
 }
 
 function updateRadiusDisplay() {
-    if (radiusSlider && radiusDisplay) {
-        const value = radiusSlider.value;
-        radiusDisplay.textContent = `${value} km`;
-        console.log('Radius display updated to:', value + ' km');
-    } else {
-        console.error('Radius elements missing:', {
-            slider: !!radiusSlider,
-            display: !!radiusDisplay
-        });
+    const slider = elements.radiusSlider || document.getElementById('radius-slider');
+    const display = elements.radiusDisplay || document.getElementById('radius-display');
+    
+    if (slider && display) {
+        const value = slider.value;
+        display.textContent = `${value} km`;
+        console.log('Slider updated:', value);
     }
 }
 
 async function handleSearch() {
-    console.log('handleSearch called');
-    
-    if (!locationInput) {
-        console.error('Location input not found');
-        return;
-    }
-    
-    const location = locationInput.value.trim();
-    console.log('Location input value:', location);
-    
+    const location = elements.locationInput?.value?.trim();
     if (!location) {
         showError('Please enter a location to search.');
         return;
@@ -135,313 +81,311 @@ async function handleSearch() {
         showLoading();
         hideError();
         
-        console.log('Starting search for:', location);
-        
-        // Step 1: Geocode the location
         const coordinates = await geocodeLocation(location);
-        console.log('Geocoded coordinates:', coordinates);
-        
-        // Step 2: Search for arts organizations
-        const radius = parseInt(radiusSlider?.value || 25) * 1000; // Convert km to meters
+        const radius = parseInt(elements.radiusSlider?.value || 25) * 1000;
         const organizations = await searchArtsOrganizations(coordinates, radius);
-        console.log('Found organizations:', organizations.length);
-        
-        // Step 3: Process and display results
-        currentResults = processResults(organizations);
+        currentResults = await enhanceResults(organizations, location);
         displayResults(currentResults);
         
     } catch (error) {
         console.error('Search error:', error);
-        showError(error.message || 'An error occurred while searching. Please try again.');
+        showError(error.message || 'Search failed. Please try again.');
     } finally {
         hideLoading();
     }
 }
 
 async function geocodeLocation(location) {
-    const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&addressdetails=1&q=${encodeURIComponent(location)}`;
+    const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(location)}`, {
+        headers: { 'User-Agent': 'Art-Pharmacy-Finder/1.0' }
+    });
     
-    try {
-        const response = await fetch(url, {
-            headers: {
-                'User-Agent': 'Art-Pharmacy-Finder/1.0'
-            }
-        });
-        
-        if (!response.ok) {
-            throw new Error('Failed to find location');
-        }
-        
-        const data = await response.json();
-        
-        if (data.length === 0) {
-            throw new Error('Location not found. Please try a different location or be more specific.');
-        }
-        
-        return {
-            lat: parseFloat(data[0].lat),
-            lon: parseFloat(data[0].lon)
-        };
-    } catch (error) {
-        console.error('Geocoding error:', error);
-        throw new Error('Unable to find location. Please check your internet connection and try again.');
-    }
+    if (!response.ok) throw new Error('Failed to find location');
+    
+    const data = await response.json();
+    if (data.length === 0) throw new Error('Location not found. Please try a different location.');
+    
+    return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) };
 }
 
-async function searchArtsOrganizations(coordinates, radius) {
-    const { lat, lon } = coordinates;
-    
-    // Comprehensive Overpass query
-    const overpassQuery = `
+async function searchArtsOrganizations({ lat, lon }, radius) {
+    const query = `
         [out:json][timeout:30];
         (
-            // Museums and Galleries
-            node["tourism"="gallery"](around:${radius},${lat},${lon});
-            node["tourism"="museum"](around:${radius},${lat},${lon});
-            node["historic"="museum"](around:${radius},${lat},${lon});
-            way["tourism"="gallery"](around:${radius},${lat},${lon});
-            way["tourism"="museum"](around:${radius},${lat},${lon});
-            way["historic"="museum"](around:${radius},${lat},${lon});
-
-            // Arts and Culture Centers
-            node["amenity"="arts_centre"](around:${radius},${lat},${lon});
-            node["amenity"="community_centre"](around:${radius},${lat},${lon});
-            node["amenity"="cultural_centre"](around:${radius},${lat},${lon});
-            way["amenity"="arts_centre"](around:${radius},${lat},${lon});
-            way["amenity"="community_centre"](around:${radius},${lat},${lon});
-            way["amenity"="cultural_centre"](around:${radius},${lat},${lon});
-
-            // Performing Arts
-            node["amenity"="theatre"](around:${radius},${lat},${lon});
-            node["amenity"="cinema"](around:${radius},${lat},${lon});
-            node["amenity"="music_venue"](around:${radius},${lat},${lon});
-            node["amenity"="concert_hall"](around:${radius},${lat},${lon});
-            way["amenity"="theatre"](around:${radius},${lat},${lon});
-            way["amenity"="cinema"](around:${radius},${lat},${lon});
-            way["amenity"="music_venue"](around:${radius},${lat},${lon});
-            way["amenity"="concert_hall"](around:${radius},${lat},${lon});
-
-            // Educational and Libraries
-            node["amenity"="library"](around:${radius},${lat},${lon});
-            way["amenity"="library"](around:${radius},${lat},${lon});
-
-            // Studios and Workshops
-            node["amenity"="studio"](around:${radius},${lat},${lon});
-            node["craft"="pottery"](around:${radius},${lat},${lon});
-            node["craft"="artist"](around:${radius},${lat},${lon});
-            node["shop"="art"](around:${radius},${lat},${lon});
-            way["amenity"="studio"](around:${radius},${lat},${lon});
-            way["craft"="pottery"](around:${radius},${lat},${lon});
-            way["craft"="artist"](around:${radius},${lat},${lon});
-            way["shop"="art"](around:${radius},${lat},${lon});
-
-            // Nature and Science
-            node["tourism"="zoo"](around:${radius},${lat},${lon});
-            node["tourism"="aquarium"](around:${radius},${lat},${lon});
+            node["tourism"~"^(gallery|museum)$|artwork"](around:${radius},${lat},${lon});
+            way["tourism"~"^(gallery|museum)$|artwork"](around:${radius},${lat},${lon});
+            node["amenity"~"^(arts_centre|community_centre|cultural_centre|theatre|music_venue|concert_hall|opera|library|university|college)$"](around:${radius},${lat},${lon});
+            way["amenity"~"^(arts_centre|community_centre|cultural_centre|theatre|music_venue|concert_hall|opera|library|university|college)$"](around:${radius},${lat},${lon});
+            node["historic"~"^(museum|heritage|castle|monument|archaeological_site|memorial)$"](around:${radius},${lat},${lon});
+            way["historic"~"^(museum|heritage|castle|monument|archaeological_site|memorial)$"](around:${radius},${lat},${lon});
             node["leisure"="garden"]["garden:type"="botanical"](around:${radius},${lat},${lon});
-            way["tourism"="zoo"](around:${radius},${lat},${lon});
-            way["tourism"="aquarium"](around:${radius},${lat},${lon});
             way["leisure"="garden"]["garden:type"="botanical"](around:${radius},${lat},${lon});
-
-            // Historical sites
-            node["historic"="heritage"](around:${radius},${lat},${lon});
-            node["historic"="castle"](around:${radius},${lat},${lon});
-            node["historic"="monument"](around:${radius},${lat},${lon});
-            way["historic"="heritage"](around:${radius},${lat},${lon});
-            way["historic"="castle"](around:${radius},${lat},${lon});
-            way["historic"="monument"](around:${radius},${lat},${lon});
+            node["tourism"~"^(zoo|aquarium)$"](around:${radius},${lat},${lon});
+            way["tourism"~"^(zoo|aquarium)$"](around:${radius},${lat},${lon});
+            node["craft"~"^(pottery|artist|sculptor)$"][!"shop"](around:${radius},${lat},${lon});
+            way["craft"~"^(pottery|artist|sculptor)$"][!"shop"](around:${radius},${lat},${lon});
         );
         out center meta;
     `;
     
-    try {
-        // Add delay to respect rate limits
-        await new Promise(resolve => setTimeout(resolve, 500));
-        
-        const response = await fetch('https://overpass-api.de/api/interpreter', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-            },
-            body: `data=${encodeURIComponent(overpassQuery)}`
-        });
-        
-        if (!response.ok) {
-            throw new Error('Failed to search for organizations');
-        }
-        
-        const data = await response.json();
-        return data.elements || [];
-        
-    } catch (error) {
-        console.error('Overpass API error:', error);
-        throw new Error('Unable to search for arts organizations. Please try again.');
-    }
+    await sleep(500);
+    
+    const response = await fetch('https://overpass-api.de/api/interpreter', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `data=${encodeURIComponent(query)}`
+    });
+    
+    if (!response.ok) throw new Error('Search failed');
+    const data = await response.json();
+    return data.elements || [];
 }
 
 function processResults(rawResults) {
     const organizations = [];
-    const seenNames = new Set();
+    const seen = new Set();
     
-    for (const element of rawResults) {
+    rawResults.forEach(element => {
         const tags = element.tags || {};
         const name = tags.name || tags['name:en'] || 'Unnamed Organization';
+        const key = name.toLowerCase().trim();
         
-        // Skip if we've already seen this name (deduplication)
-        const normalizedName = name.toLowerCase().trim();
-        if (seenNames.has(normalizedName)) {
-            continue;
-        }
+        if (seen.has(key) || isExcluded(tags, name)) return;
+        seen.add(key);
         
-        // Skip generic or irrelevant entries
-        if (isIrrelevantEntry(tags, name)) {
-            continue;
-        }
-        
-        seenNames.add(normalizedName);
-        
-        // Extract website
         let website = tags.website || tags['contact:website'] || tags.url || '';
-        if (website && !website.startsWith('http')) {
-            website = 'https://' + website;
-        }
+        if (website && !website.startsWith('http')) website = 'https://' + website;
         
-        // Extract contact info
-        let contact = tags.email || tags['contact:email'] || tags.phone || tags['contact:phone'] || '';
+        const contact = tags.email || tags['contact:email'] || tags.phone || tags['contact:phone'] || '';
         
         organizations.push({
-            name: name,
-            website: website || '',
-            contact: contact || '',
-            lat: element.lat || (element.center && element.center.lat) || 0,
-            lon: element.lon || (element.center && element.center.lon) || 0,
-            type: getOrganizationType(tags)
+            name,
+            website,
+            contact,
+            contactType: contact.includes('@') ? 'email' : contact.match(/[\d\-\(\)\+\s]{7,}/) ? 'phone' : '',
+            lat: element.lat || element.center?.lat || 0,
+            lon: element.lon || element.center?.lon || 0,
+            type: getOrgType(tags)
         });
+    });
+    
+    return organizations;
+}
+
+function isExcluded(tags, name) {
+    const excluded = ['parking', 'toilets', 'shop', 'retail', 'cinema', 'restaurant', 'cafe', 'bar'];
+    if (excluded.some(tag => tags[tag] || tags.amenity === tag)) return true;
+    
+    const commercial = ['shop', 'store', 'boutique', 'market', 'mall'];
+    if (commercial.some(word => name.toLowerCase().includes(word))) return true;
+    
+    return tags.access === 'private' || (tags.fee === 'yes' && !isMajorVenue(tags));
+}
+
+function isMajorVenue(tags) {
+    const major = ['museum', 'gallery', 'zoo', 'aquarium', 'theatre', 'opera', 'castle'];
+    return major.some(type => Object.values(tags).includes(type));
+}
+
+function getOrgType(tags) {
+    const types = {
+        gallery: 'Art Gallery', museum: 'Museum', theatre: 'Theatre',
+        music_venue: 'Music Venue', concert_hall: 'Concert Hall', opera: 'Opera House',
+        arts_centre: 'Arts Centre', community_centre: 'Community Centre',
+        cultural_centre: 'Cultural Centre', library: 'Library',
+        university: 'University', college: 'College', zoo: 'Zoo', aquarium: 'Aquarium'
+    };
+    
+    for (const [key, value] of Object.entries(types)) {
+        if (Object.values(tags).includes(key)) return value;
+    }
+    
+    if (tags.historic === 'castle') return 'Historic Castle';
+    if (tags.historic === 'monument') return 'Monument';
+    if (tags.historic === 'heritage') return 'Heritage Site';
+    if (tags.tourism === 'artwork') return 'Public Art';
+    if (tags.leisure === 'garden') return 'Botanical Garden';
+    
+    return 'Cultural Organization';
+}
+
+async function enhanceResults(rawResults, location) {
+    const organizations = processResults(rawResults);
+    
+    for (let i = 0; i < Math.min(organizations.length, 25); i++) {
+        const org = organizations[i];
+        console.log(`Enhancing ${i + 1}/${organizations.length}: ${org.name}`);
+        
+        if (!org.website) {
+            const sites = await findWebsites(org.name, location, org.type);
+            if (sites.length > 0) {
+                org.website = sites[0];
+                org.allWebsites = sites;
+            }
+        }
+        
+        if (!org.contact) {
+            const contact = await findContact(org.name, location, org.allWebsites || []);
+            if (contact) {
+                org.contact = contact.value;
+                org.contactType = contact.type;
+            }
+        }
+        
+        await sleep(150);
     }
     
     return organizations;
 }
 
-function isIrrelevantEntry(tags, name) {
-    // Exclude generic infrastructure
-    if (tags.amenity === 'parking' || tags.amenity === 'toilets') return true;
-    if (tags.leisure === 'playground' && !tags.cultural) return true;
-    if (tags.leisure === 'sports_centre' && !tags.cultural) return true;
+async function findWebsites(name, location, type) {
+    const queries = [
+        `"${name}" ${location} official website`,
+        `${name.replace(/[^\w\s]/g, '')} ${type} site`,
+        `${name} cultural organization`
+    ];
     
-    // Exclude very generic parks without cultural significance
-    if (tags.leisure === 'park' && !tags['garden:type'] && !tags.attraction && !tags.historic) {
-        return true;
+    for (const query of queries) {
+        try {
+            const sites = await searchWeb(query, name);
+            if (sites.length > 0) return sites.slice(0, 2);
+            await sleep(200);
+        } catch (e) { continue; }
     }
     
-    // Exclude generic commercial buildings
-    if (tags.building === 'commercial' && !tags.amenity && !tags.shop && !tags.craft) {
-        return true;
-    }
-    
-    return false;
+    return [];
 }
 
-function getOrganizationType(tags) {
-    // Museums and galleries
-    if (tags.tourism === 'gallery') return 'Art Gallery';
-    if (tags.tourism === 'museum') return 'Museum';
-    if (tags.historic === 'museum') return 'Historical Museum';
+async function findContact(name, location, websites) {
+    // Try email search
+    const emailQueries = [`"${name}" ${location} email`, `${name} contact email`];
+    for (const query of emailQueries) {
+        try {
+            const email = await searchEmail(query);
+            if (email && isValidEmail(email)) return { value: email, type: 'email' };
+            await sleep(150);
+        } catch (e) { continue; }
+    }
     
-    // Nature and science
-    if (tags.tourism === 'zoo') return 'Zoo';
-    if (tags.tourism === 'aquarium') return 'Aquarium';
-    if (tags.leisure === 'garden' && tags['garden:type'] === 'botanical') return 'Botanical Garden';
+    // Try contact page
+    if (websites?.length > 0) {
+        const contactPage = await findContactPage(websites[0]);
+        if (contactPage) return { value: contactPage, type: 'contactPage' };
+    }
     
-    // Performing arts
-    if (tags.amenity === 'theatre') return 'Theatre';
-    if (tags.amenity === 'cinema') return 'Cinema';
-    if (tags.amenity === 'music_venue') return 'Music Venue';
-    if (tags.amenity === 'concert_hall') return 'Concert Hall';
+    // Generate email
+    if (websites?.length > 0) {
+        try {
+            const domain = new URL(websites[0]).hostname;
+            return { value: `info@${domain}`, type: 'email' };
+        } catch (e) { }
+    }
     
-    // Arts and culture centres
-    if (tags.amenity === 'arts_centre') return 'Arts Centre';
-    if (tags.amenity === 'community_centre') return 'Community Centre';
-    if (tags.amenity === 'cultural_centre') return 'Cultural Centre';
+    return null;
+}
+
+async function searchWeb(query, orgName) {
+    const response = await fetch(`https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_redirect=1&no_html=1`);
+    const data = await response.json();
     
-    // Educational and libraries
-    if (tags.amenity === 'library') return 'Library';
+    const sites = [];
+    if (data.AbstractURL && isValidSite(data.AbstractURL, orgName)) sites.push(data.AbstractURL);
     
-    // Studios and workshops
-    if (tags.amenity === 'studio') return 'Studio';
-    if (tags.craft === 'pottery') return 'Pottery Studio';
-    if (tags.craft === 'artist') return 'Artist Studio';
-    if (tags.shop === 'art') return 'Art Shop';
+    data.Results?.slice(0, 3).forEach(result => {
+        if (result.FirstURL && isValidSite(result.FirstURL, orgName)) sites.push(result.FirstURL);
+    });
     
-    // Historical sites
-    if (tags.historic === 'heritage') return 'Heritage Site';
-    if (tags.historic === 'castle') return 'Historic Castle';
-    if (tags.historic === 'monument') return 'Monument';
+    return [...new Set(sites)];
+}
+
+async function searchEmail(query) {
+    const response = await fetch(`https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_redirect=1&no_html=1`);
+    const data = await response.json();
     
-    return 'Cultural Organization';
+    const emailRegex = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/;
+    
+    const text = data.Abstract + (data.Results?.map(r => r.Text).join(' ') || '');
+    const match = text.match(emailRegex);
+    return match?.[0] || null;
+}
+
+async function findContactPage(website) {
+    const paths = ['/contact', '/contact-us', '/about/contact', '/info/contact'];
+    
+    for (const path of paths) {
+        try {
+            const url = website.endsWith('/') ? website + path.substring(1) : website + path;
+            const controller = new AbortController();
+            setTimeout(() => controller.abort(), 1500);
+            
+            await fetch(url, { method: 'HEAD', signal: controller.signal, mode: 'no-cors' });
+            return url;
+        } catch (e) { continue; }
+    }
+    
+    return null;
+}
+
+function isValidSite(url, name) {
+    try {
+        const domain = new URL(url).hostname.toLowerCase();
+        const skip = ['facebook', 'twitter', 'instagram', 'yelp', 'wikipedia', 'google'];
+        if (skip.some(s => domain.includes(s))) return false;
+        
+        const good = ['.org', '.edu', '.gov', '.museum'];
+        return good.some(g => domain.endsWith(g)) || domain.includes('museum') || domain.includes('arts');
+    } catch (e) { return false; }
+}
+
+function isValidEmail(email) {
+    return /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}$/.test(email) &&
+           !email.includes('example.com') && !email.includes('noreply');
 }
 
 function displayResults(organizations) {
-    console.log('displayResults called with', organizations.length, 'organizations');
+    if (!elements.resultsSection) return;
     
-    if (!resultsSection || !resultsCount || !resultsTbody) {
-        console.error('Required elements not found for displaying results');
-        return;
-    }
-    
-    resultsSection.style.display = 'block';
-    resultsCount.textContent = `${organizations.length} organization${organizations.length !== 1 ? 's' : ''} found`;
+    elements.resultsSection.style.display = 'block';
+    elements.resultsCount.textContent = `${organizations.length} organization${organizations.length !== 1 ? 's' : ''} found`;
     
     if (organizations.length === 0) {
-        tableContainer.style.display = 'none';
-        downloadCsvBtn.disabled = true;
-        showError('No arts or cultural organizations found in this area. Try expanding your search radius or a different location.');
+        elements.tableContainer.style.display = 'none';
+        elements.downloadCsvBtn.disabled = true;
+        showError('No cultural organizations found. Try expanding your search radius.');
         return;
     }
     
-    // Clear previous results
-    resultsTbody.innerHTML = '';
+    elements.resultsTbody.innerHTML = '';
     
-    // Add rows to table
     organizations.forEach(org => {
         const row = document.createElement('tr');
         
-        // Name column
-        const nameCell = document.createElement('td');
-        nameCell.textContent = org.name;
-        row.appendChild(nameCell);
+        // Name
+        row.appendChild(createCell(org.name));
         
-        // Type column
-        const typeCell = document.createElement('td');
-        const typeBadge = document.createElement('span');
-        typeBadge.className = `type-badge ${getTypeBadgeClass(org.type)}`;
-        typeBadge.textContent = org.type;
-        typeCell.appendChild(typeBadge);
-        row.appendChild(typeCell);
-        
-        // Website column
+        // Website
         const websiteCell = document.createElement('td');
-        if (org.website) {
-            const link = document.createElement('a');
-            link.href = org.website;
-            link.target = '_blank';
-            link.rel = 'noopener noreferrer';
-            link.className = 'table-link';
-            link.textContent = 'Visit Website';
-            websiteCell.appendChild(link);
+        if (org.allWebsites?.length > 0) {
+            org.allWebsites.forEach((site, i) => {
+                if (i > 0) websiteCell.appendChild(document.createElement('br'));
+                websiteCell.appendChild(createLink(site, i === 0 ? 'Main Site' : `Site ${i + 1}`));
+            });
+        } else if (org.website) {
+            websiteCell.appendChild(createLink(org.website, 'Visit Website'));
         } else {
             websiteCell.textContent = '-';
         }
         row.appendChild(websiteCell);
         
-        // Contact column
+        // Contact
         const contactCell = document.createElement('td');
         if (org.contact) {
-            if (org.contact.includes('@')) {
-                const emailLink = document.createElement('a');
-                emailLink.href = `mailto:${org.contact}`;
-                emailLink.className = 'table-link';
-                emailLink.textContent = org.contact;
-                contactCell.appendChild(emailLink);
+            if (org.contactType === 'email' || org.contact.includes('@')) {
+                contactCell.appendChild(createLink(`mailto:${org.contact}`, org.contact));
+            } else if (org.contact.startsWith('http')) {
+                contactCell.appendChild(createLink(org.contact, 'Contact Page', true));
+            } else if (org.contact.match(/[\d\s\-\(\)\+\.]{7,}/)) {
+                contactCell.appendChild(createLink(`tel:${org.contact.replace(/[^\d\+]/g, '')}`, org.contact));
             } else {
                 contactCell.textContent = org.contact;
             }
@@ -450,32 +394,47 @@ function displayResults(organizations) {
         }
         row.appendChild(contactCell);
         
-        resultsTbody.appendChild(row);
+        // Type
+        const typeCell = document.createElement('td');
+        const badge = document.createElement('span');
+        badge.className = `type-badge ${getBadgeClass(org.type)}`;
+        badge.textContent = org.type;
+        typeCell.appendChild(badge);
+        row.appendChild(typeCell);
+        
+        elements.resultsTbody.appendChild(row);
     });
     
-    tableContainer.style.display = 'block';
-    downloadCsvBtn.disabled = false;
-    
-    // Reset sorting
+    elements.tableContainer.style.display = 'block';
+    elements.downloadCsvBtn.disabled = false;
     resetSortIndicators();
-    
-    console.log('Results displayed successfully');
 }
 
-function getTypeBadgeClass(type) {
-    const typeMap = {
-        'Museum': 'type-museum',
-        'Historical Museum': 'type-museum',
-        'Art Gallery': 'type-gallery',
-        'Theatre': 'type-theatre',
-        'Cinema': 'type-theatre',
-        'Library': 'type-library',
-        'Arts Centre': 'type-arts-centre',
-        'Community Centre': 'type-arts-centre',
-        'Cultural Centre': 'type-arts-centre'
+function createCell(text) {
+    const cell = document.createElement('td');
+    cell.textContent = text;
+    return cell;
+}
+
+function createLink(href, text, newTab = true) {
+    const link = document.createElement('a');
+    link.href = href;
+    link.textContent = text;
+    link.className = 'table-link';
+    if (newTab) {
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+    }
+    return link;
+}
+
+function getBadgeClass(type) {
+    const map = {
+        'Museum': 'type-museum', 'Art Gallery': 'type-gallery',
+        'Theatre': 'type-theatre', 'Library': 'type-library',
+        'Arts Centre': 'type-arts-centre'
     };
-    
-    return typeMap[type] || 'type-other';
+    return map[type] || 'type-other';
 }
 
 function handleSort(column) {
@@ -486,28 +445,15 @@ function handleSort(column) {
         currentSortDirection = 'asc';
     }
     
-    // Sort the results
-    const sortedResults = [...currentResults].sort((a, b) => {
-        let aValue = a[column] || '';
-        let bValue = b[column] || '';
-        
-        // Handle empty values
-        if (!aValue && !bValue) return 0;
-        if (!aValue) return 1;
-        if (!bValue) return -1;
-        
-        // Convert to string for comparison
-        aValue = String(aValue);
-        bValue = String(bValue);
-        
-        // Compare values
-        const comparison = aValue.localeCompare(bValue);
+    const sorted = [...currentResults].sort((a, b) => {
+        const aVal = String(a[column] || '');
+        const bVal = String(b[column] || '');
+        const comparison = aVal.localeCompare(bVal);
         return currentSortDirection === 'asc' ? comparison : -comparison;
     });
     
-    // Update UI
     updateSortIndicators();
-    displayResults(sortedResults);
+    displayResults(sorted);
 }
 
 function updateSortIndicators() {
@@ -526,116 +472,74 @@ function updateSortIndicators() {
 
 function resetSortIndicators() {
     document.querySelectorAll('.sortable').forEach(header => {
-        const indicator = header.querySelector('.sort-indicator');
         header.classList.remove('asc', 'desc');
-        indicator.textContent = '↕';
+        header.querySelector('.sort-indicator').textContent = '↕';
     });
     currentSortColumn = null;
     currentSortDirection = 'asc';
 }
 
 function downloadCsv() {
-    if (currentResults.length === 0) {
-        return;
-    }
+    if (currentResults.length === 0) return;
     
-    // Create CSV content
-    const csvHeaders = ['Organization Name', 'Type', 'Website', 'Contact'];
-    const csvRows = [csvHeaders.join(',')];
+    const headers = ['Organization Name', 'Website', 'Contact', 'Type'];
+    const rows = [headers.join(',')];
     
     currentResults.forEach(org => {
         const row = [
-            escapeCsvValue(org.name),
-            escapeCsvValue(org.type),
-            escapeCsvValue(org.website),
-            escapeCsvValue(org.contact)
+            escapeCsv(org.name),
+            escapeCsv(org.website),
+            escapeCsv(org.contact),
+            escapeCsv(org.type)
         ];
-        csvRows.push(row.join(','));
+        rows.push(row.join(','));
     });
     
-    const csvContent = csvRows.join('\n');
+    const csv = rows.join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
     
-    // Create and download file
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
+    link.href = url;
+    link.download = `arts_organizations_${Date.now()}.csv`;
+    link.click();
     
-    if (link.download !== undefined) {
-        const url = URL.createObjectURL(blob);
-        link.setAttribute('href', url);
-        
-        // Generate filename with location and date
-        const location = (locationInput?.value || 'search').replace(/[^a-zA-Z0-9]/g, '_');
-        const date = new Date().toISOString().split('T')[0];
-        link.setAttribute('download', `arts_organizations_${location}_${date}.csv`);
-        
-        link.style.visibility = 'hidden';
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        
-        // Clean up
-        URL.revokeObjectURL(url);
-    }
+    URL.revokeObjectURL(url);
 }
 
-function escapeCsvValue(value) {
+function escapeCsv(value) {
     if (!value) return '';
-    
-    // Convert to string and handle special characters
-    const stringValue = String(value);
-    
-    // If value contains comma, quote, or newline, wrap in quotes and escape internal quotes
-    if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')) {
-        return '"' + stringValue.replace(/"/g, '""') + '"';
-    }
-    
-    return stringValue;
+    const str = String(value);
+    return str.includes(',') || str.includes('"') ? `"${str.replace(/"/g, '""')}"` : str;
 }
 
 function showLoading() {
-    console.log('showLoading called');
+    elements.loadingContainer.style.display = 'flex';
+    elements.tableContainer.style.display = 'none';
+    elements.searchBtn.disabled = true;
+    elements.searchBtn.textContent = '🔍 Searching...';
     
-    if (loadingContainer) {
-        loadingContainer.style.display = 'flex';
-    }
-    if (tableContainer) {
-        tableContainer.style.display = 'none';
-    }
-    if (searchBtn) {
-        searchBtn.disabled = true;
-        searchBtn.textContent = '🔍 Searching...';
-    }
+    const text = elements.loadingContainer.querySelector('.loading-text');
+    if (text) text.textContent = 'Finding cultural organizations...';
 }
 
 function hideLoading() {
-    console.log('hideLoading called');
-    
-    if (loadingContainer) {
-        loadingContainer.style.display = 'none';
-    }
-    if (searchBtn) {
-        searchBtn.disabled = false;
-        searchBtn.textContent = '🎨 Find Cultural Partners';
-    }
+    elements.loadingContainer.style.display = 'none';
+    elements.searchBtn.disabled = false;
+    elements.searchBtn.textContent = 'Find Partners';
 }
 
 function showError(message) {
-    console.log('showError called:', message);
-    
-    if (errorMessage) {
-        errorMessage.textContent = message;
-        errorMessage.style.display = 'block';
-    }
-    if (tableContainer) {
-        tableContainer.style.display = 'none';
-    }
-    if (downloadCsvBtn) {
-        downloadCsvBtn.disabled = true;
-    }
+    elements.errorMessage.textContent = message;
+    elements.errorMessage.style.display = 'block';
+    elements.tableContainer.style.display = 'none';
+    elements.downloadCsvBtn.disabled = true;
 }
 
 function hideError() {
-    if (errorMessage) {
-        errorMessage.style.display = 'none';
-    }
+    elements.errorMessage.style.display = 'none';
+}
+
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
 }
