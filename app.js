@@ -3,92 +3,94 @@ let currentResults = [];
 let currentSortColumn = null;
 let currentSortDirection = 'asc';
 
-// Common contact page paths to try (reduced list for speed)
-const CONTACT_PATHS = [
-    '/contact',
-    '/contact-us',
-    '/about/contact',
-    '/info',
-    '/about'
-];
-
-// Cache for contact page validation - with TTL
-const contactPageCache = new Map();
-const CACHE_TTL = 300000; // 5 minutes
-
-// Debounce timer for search
-let searchDebounceTimer = null;
-
-// DOM elements cache
-const domElements = {};
+// DOM elements
+let locationInput, radiusSlider, radiusDisplay, searchBtn;
+let resultsSection, loadingContainer, errorMessage, tableContainer, resultsTbody, resultsCount, downloadCsvBtn;
 
 // Initialize the application
 document.addEventListener('DOMContentLoaded', function() {
     console.log('DOM Content Loaded');
-    
-    // Immediate initialization - no setTimeout needed
     initializeElements();
     initializeEventListeners();
-    updateRadiusDisplay();
+    updateRadiusDisplay(); // Set initial value
     console.log('Application initialized');
 });
 
-// Initialize DOM elements - cache all at once
 function initializeElements() {
-    const elementIds = [
-        'location-input', 'radius-slider', 'radius-display', 'search-btn',
-        'results-section', 'loading-spinner', 'error-message', 
-        'results-table-container', 'results-table', 'results-tbody',
-        'results-count', 'download-csv'
-    ];
+    locationInput = document.getElementById('location-input');
+    radiusSlider = document.getElementById('radius-slider');
+    radiusDisplay = document.getElementById('radius-display');
+    searchBtn = document.getElementById('search-btn');
+    resultsSection = document.getElementById('results-section');
+    loadingContainer = document.getElementById('loading-container');
+    errorMessage = document.getElementById('error-message');
+    tableContainer = document.getElementById('table-container');
+    resultsTbody = document.getElementById('results-tbody');
+    resultsCount = document.getElementById('results-count');
+    downloadCsvBtn = document.getElementById('download-csv');
     
-    elementIds.forEach(id => {
-        domElements[id] = document.getElementById(id);
+    // Debug log to check elements
+    console.log('Elements found:', {
+        locationInput: !!locationInput,
+        radiusSlider: !!radiusSlider,
+        radiusDisplay: !!radiusDisplay,
+        searchBtn: !!searchBtn
     });
-    
-    // Debug: Check if elements exist
-    console.log('Elements initialized:', Object.keys(domElements).length);
 }
 
-// Event listeners with improved performance
 function initializeEventListeners() {
-    const { 'search-btn': searchBtn, 'location-input': locationInput, 'radius-slider': radiusSlider, 'download-csv': downloadCsvBtn } = domElements;
-    
-    // Search functionality with debouncing
+    // Search button
     if (searchBtn) {
         searchBtn.addEventListener('click', function(e) {
             e.preventDefault();
-            debouncedSearch();
+            console.log('Search button clicked');
+            handleSearch();
         });
+        console.log('Search button listener added');
     }
     
+    // Location input
     if (locationInput) {
         locationInput.addEventListener('keypress', function(e) {
             if (e.key === 'Enter') {
                 e.preventDefault();
-                debouncedSearch();
+                handleSearch();
             }
         });
+        console.log('Location input listener added');
     }
 
-    // Radius slider - throttled updates
+    // Radius slider - multiple event listeners for better compatibility
     if (radiusSlider) {
-        let radiusUpdateTimer;
         radiusSlider.addEventListener('input', function(e) {
-            clearTimeout(radiusUpdateTimer);
-            radiusUpdateTimer = setTimeout(updateRadiusDisplay, 100);
+            console.log('Slider input event:', e.target.value);
+            updateRadiusDisplay();
         });
-    }
-
-    // Table sorting - use event delegation
-    const resultsTable = domElements['results-table'];
-    if (resultsTable) {
-        resultsTable.addEventListener('click', function(e) {
-            if (e.target.classList.contains('sortable')) {
-                handleSort(e.target.dataset.column);
+        
+        radiusSlider.addEventListener('change', function(e) {
+            console.log('Slider change event:', e.target.value);
+            updateRadiusDisplay();
+        });
+        
+        // Additional listener for mouse events
+        radiusSlider.addEventListener('mousemove', function(e) {
+            if (e.buttons === 1) { // Only if mouse is pressed
+                updateRadiusDisplay();
             }
         });
+        
+        console.log('Radius slider listeners added');
+    } else {
+        console.error('Radius slider not found!');
     }
+
+    // Table sorting
+    document.querySelectorAll('.sortable').forEach(header => {
+        header.addEventListener('click', () => {
+            console.log('Sort by:', header.dataset.column);
+            handleSort(header.dataset.column);
+        });
+    });
 
     // CSV download
     if (downloadCsvBtn) {
@@ -96,34 +98,34 @@ function initializeEventListeners() {
             e.preventDefault();
             downloadCsv();
         });
+        console.log('Download CSV listener added');
     }
 }
 
-// Debounced search to prevent rapid API calls
-function debouncedSearch() {
-    clearTimeout(searchDebounceTimer);
-    searchDebounceTimer = setTimeout(handleSearch, 300);
-}
-
-// Update radius display
 function updateRadiusDisplay() {
-    const radiusSlider = domElements['radius-slider'];
-    const radiusDisplay = domElements['radius-display'];
-    
     if (radiusSlider && radiusDisplay) {
-        radiusDisplay.textContent = `${radiusSlider.value} km`;
+        const value = radiusSlider.value;
+        radiusDisplay.textContent = `${value} km`;
+        console.log('Radius display updated to:', value + ' km');
+    } else {
+        console.error('Radius elements missing:', {
+            slider: !!radiusSlider,
+            display: !!radiusDisplay
+        });
     }
 }
 
-// Main search handler - optimized with early returns
 async function handleSearch() {
-    const locationInput = domElements['location-input'];
-    const radiusSlider = domElements['radius-slider'];
-    const searchBtn = domElements['search-btn'];
+    console.log('handleSearch called');
     
-    if (!locationInput) return;
+    if (!locationInput) {
+        console.error('Location input not found');
+        return;
+    }
     
     const location = locationInput.value.trim();
+    console.log('Location input value:', location);
+    
     if (!location) {
         showError('Please enter a location to search.');
         return;
@@ -133,28 +135,19 @@ async function handleSearch() {
         showLoading();
         hideError();
         
-        // Parallel execution where possible
-        const [coordinates, radius] = await Promise.all([
-            geocodeLocation(location),
-            Promise.resolve(parseInt(radiusSlider?.value || 25) * 1000)
-        ]);
+        console.log('Starting search for:', location);
         
+        // Step 1: Geocode the location
+        const coordinates = await geocodeLocation(location);
         console.log('Geocoded coordinates:', coordinates);
         
-        let organizations;
-        try {
-            organizations = await searchArtsOrganizations(coordinates, radius);
-            console.log('Found organizations:', organizations.length);
-            
-            // Batch process with smaller batches for faster response
-            if (searchBtn) searchBtn.textContent = 'Validating contact information...';
-            currentResults = await batchProcessOrganizations(organizations, 5);
-            
-        } catch (apiError) {
-            console.warn('API search failed, using sample data:', apiError);
-            currentResults = getSampleData(location);
-        }
+        // Step 2: Search for arts organizations
+        const radius = parseInt(radiusSlider?.value || 25) * 1000; // Convert km to meters
+        const organizations = await searchArtsOrganizations(coordinates, radius);
+        console.log('Found organizations:', organizations.length);
         
+        // Step 3: Process and display results
+        currentResults = processResults(organizations);
         displayResults(currentResults);
         
     } catch (error) {
@@ -165,38 +158,22 @@ async function handleSearch() {
     }
 }
 
-// Optimized sample data generation
-function getSampleData(location) {
-    const sampleOrgs = [
-        { name: 'Philadelphia Museum of Art', website: 'https://www.philamuseum.org', contact: 'info@philamuseum.org', type: 'Museum' },
-        { name: 'Mural Arts Philadelphia', website: 'https://www.muralarts.org', contact: 'info@muralarts.org', type: 'Arts Centre' },
-        { name: 'Pennsylvania Academy of the Fine Arts', website: 'https://www.pafa.org', contact: 'admissions@pafa.org', type: 'Art School' },
-        { name: 'Morris Arboretum & Gardens', website: 'https://www.morrisarboretum.org', contact: 'info@morrisarboretum.org', type: 'Botanical Garden' },
-        { name: 'Academy of Natural Sciences', website: 'https://www.ansp.org', contact: 'education@ansp.org', type: 'Natural History Museum' },
-        { name: 'Barnes Foundation', website: 'https://www.barnesfoundation.org', contact: 'info@barnesfoundation.org', type: 'Art Museum' },
-        { name: 'Philadelphia Zoo', website: 'https://www.philadelphiazoo.org', contact: 'info@philadelphiazoo.org', type: 'Zoo' }
-    ];
-    
-    const baseCoords = { lat: 39.9526, lon: -75.1652 };
-    return sampleOrgs.map(org => ({
-        ...org,
-        lat: baseCoords.lat + (Math.random() - 0.5) * 0.1,
-        lon: baseCoords.lon + (Math.random() - 0.5) * 0.1
-    }));
-}
-
-// Optimized geocoding with better error handling
 async function geocodeLocation(location) {
     const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&addressdetails=1&q=${encodeURIComponent(location)}`;
     
     try {
         const response = await fetch(url, {
-            headers: { 'User-Agent': 'Art Pharmacy Organization Finder' }
+            headers: {
+                'User-Agent': 'Art-Pharmacy-Finder/1.0'
+            }
         });
         
-        if (!response.ok) throw new Error('Failed to geocode location');
+        if (!response.ok) {
+            throw new Error('Failed to find location');
+        }
         
         const data = await response.json();
+        
         if (data.length === 0) {
             throw new Error('Location not found. Please try a different location or be more specific.');
         }
@@ -211,35 +188,87 @@ async function geocodeLocation(location) {
     }
 }
 
-// Optimized Overpass query - reduced complexity
 async function searchArtsOrganizations(coordinates, radius) {
     const { lat, lon } = coordinates;
     
-    // Streamlined query focusing on most important categories
+    // Comprehensive Overpass query
     const overpassQuery = `
-        [out:json][timeout:20];
+        [out:json][timeout:30];
         (
-            node["tourism"~"^(gallery|museum|zoo|aquarium)$"](around:${radius},${lat},${lon});
-            node["amenity"~"^(arts_centre|library|music_venue|concert_hall)$"](around:${radius},${lat},${lon});
-            node["historic"~"^(museum|heritage)$"](around:${radius},${lat},${lon});
+            // Museums and Galleries
+            node["tourism"="gallery"](around:${radius},${lat},${lon});
+            node["tourism"="museum"](around:${radius},${lat},${lon});
+            node["historic"="museum"](around:${radius},${lat},${lon});
+            way["tourism"="gallery"](around:${radius},${lat},${lon});
+            way["tourism"="museum"](around:${radius},${lat},${lon});
+            way["historic"="museum"](around:${radius},${lat},${lon});
+
+            // Arts and Culture Centers
+            node["amenity"="arts_centre"](around:${radius},${lat},${lon});
+            node["amenity"="community_centre"](around:${radius},${lat},${lon});
+            node["amenity"="cultural_centre"](around:${radius},${lat},${lon});
+            way["amenity"="arts_centre"](around:${radius},${lat},${lon});
+            way["amenity"="community_centre"](around:${radius},${lat},${lon});
+            way["amenity"="cultural_centre"](around:${radius},${lat},${lon});
+
+            // Performing Arts
+            node["amenity"="theatre"](around:${radius},${lat},${lon});
+            node["amenity"="cinema"](around:${radius},${lat},${lon});
+            node["amenity"="music_venue"](around:${radius},${lat},${lon});
+            node["amenity"="concert_hall"](around:${radius},${lat},${lon});
+            way["amenity"="theatre"](around:${radius},${lat},${lon});
+            way["amenity"="cinema"](around:${radius},${lat},${lon});
+            way["amenity"="music_venue"](around:${radius},${lat},${lon});
+            way["amenity"="concert_hall"](around:${radius},${lat},${lon});
+
+            // Educational and Libraries
+            node["amenity"="library"](around:${radius},${lat},${lon});
+            way["amenity"="library"](around:${radius},${lat},${lon});
+
+            // Studios and Workshops
+            node["amenity"="studio"](around:${radius},${lat},${lon});
+            node["craft"="pottery"](around:${radius},${lat},${lon});
+            node["craft"="artist"](around:${radius},${lat},${lon});
+            node["shop"="art"](around:${radius},${lat},${lon});
+            way["amenity"="studio"](around:${radius},${lat},${lon});
+            way["craft"="pottery"](around:${radius},${lat},${lon});
+            way["craft"="artist"](around:${radius},${lat},${lon});
+            way["shop"="art"](around:${radius},${lat},${lon});
+
+            // Nature and Science
+            node["tourism"="zoo"](around:${radius},${lat},${lon});
+            node["tourism"="aquarium"](around:${radius},${lat},${lon});
             node["leisure"="garden"]["garden:type"="botanical"](around:${radius},${lat},${lon});
-            
-            way["tourism"~"^(gallery|museum|zoo|aquarium)$"](around:${radius},${lat},${lon});
-            way["amenity"~"^(arts_centre|library|music_venue|concert_hall)$"](around:${radius},${lat},${lon});
-            way["historic"~"^(museum|heritage)$"](around:${radius},${lat},${lon});
+            way["tourism"="zoo"](around:${radius},${lat},${lon});
+            way["tourism"="aquarium"](around:${radius},${lat},${lon});
             way["leisure"="garden"]["garden:type"="botanical"](around:${radius},${lat},${lon});
+
+            // Historical sites
+            node["historic"="heritage"](around:${radius},${lat},${lon});
+            node["historic"="castle"](around:${radius},${lat},${lon});
+            node["historic"="monument"](around:${radius},${lat},${lon});
+            way["historic"="heritage"](around:${radius},${lat},${lon});
+            way["historic"="castle"](around:${radius},${lat},${lon});
+            way["historic"="monument"](around:${radius},${lat},${lon});
         );
         out center meta;
     `;
     
     try {
+        // Add delay to respect rate limits
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
         const response = await fetch('https://overpass-api.de/api/interpreter', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
             body: `data=${encodeURIComponent(overpassQuery)}`
         });
         
-        if (!response.ok) throw new Error('Failed to search for organizations');
+        if (!response.ok) {
+            throw new Error('Failed to search for organizations');
+        }
         
         const data = await response.json();
         return data.elements || [];
@@ -250,135 +279,7 @@ async function searchArtsOrganizations(coordinates, radius) {
     }
 }
 
-// Optimized contact validation with cache and TTL
-async function findValidContact(website, orgName) {
-    if (!website) return null;
-    
-    const normalizedWebsite = normalizeWebsiteUrl(website);
-    if (!normalizedWebsite) return null;
-    
-    // Check cache with TTL
-    const cacheKey = normalizedWebsite;
-    const cached = contactPageCache.get(cacheKey);
-    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-        return cached.data;
-    }
-    
-    try {
-        const contactInfo = await findContactPage(normalizedWebsite, orgName);
-        
-        // Cache with timestamp
-        contactPageCache.set(cacheKey, {
-            data: contactInfo,
-            timestamp: Date.now()
-        });
-        
-        return contactInfo;
-        
-    } catch (error) {
-        console.warn(`Error finding contact for ${orgName}:`, error);
-        return null;
-    }
-}
-
-// Optimized URL normalization
-function normalizeWebsiteUrl(url) {
-    if (!url) return null;
-    
-    url = url.trim().replace(/\/+$/, '');
-    if (!url.startsWith('http')) url = 'https://' + url;
-    
-    try {
-        return new URL(url).toString();
-    } catch {
-        return null;
-    }
-}
-
-// Streamlined contact page finding
-async function findContactPage(baseUrl, orgName) {
-    if (!baseUrl) return null;
-    
-    // Quick validation of main site
-    const isMainSiteValid = await validateUrl(baseUrl);
-    if (!isMainSiteValid) return null;
-    
-    // Try contact paths concurrently with Promise.allSettled
-    const contactPromises = CONTACT_PATHS.map(async path => {
-        const contactUrl = baseUrl + path;
-        const isValid = await validateUrl(contactUrl);
-        return isValid ? contactUrl : null;
-    });
-    
-    const results = await Promise.allSettled(contactPromises);
-    
-    // Return first valid contact page
-    for (const result of results) {
-        if (result.status === 'fulfilled' && result.value) {
-            return result.value;
-        }
-    }
-    
-    return baseUrl; // Fallback to main site
-}
-
-// Optimized URL validation with shorter timeout
-async function validateUrl(url, timeout = 3000) {
-    try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), timeout);
-        
-        await fetch(url, {
-            method: 'HEAD',
-            signal: controller.signal,
-            mode: 'no-cors',
-            cache: 'no-cache'
-        });
-        
-        clearTimeout(timeoutId);
-        return true;
-        
-    } catch {
-        return false;
-    }
-}
-
-// Optimized email validation
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-function isValidEmail(email) {
-    return EMAIL_REGEX.test(email);
-}
-
-// Optimized batch processing with concurrent batches
-async function batchProcessOrganizations(rawResults, batchSize = 5) {
-    const batches = [];
-    
-    for (let i = 0; i < rawResults.length; i += batchSize) {
-        batches.push(rawResults.slice(i, i + batchSize));
-    }
-    
-    // Process batches concurrently with limited concurrency
-    const maxConcurrentBatches = 2;
-    const organizations = [];
-    
-    for (let i = 0; i < batches.length; i += maxConcurrentBatches) {
-        const concurrentBatches = batches.slice(i, i + maxConcurrentBatches);
-        const batchPromises = concurrentBatches.map(batch => processResults(batch));
-        
-        const batchResults = await Promise.all(batchPromises);
-        batchResults.forEach(results => organizations.push(...results));
-        
-        // Small delay between batch groups
-        if (i + maxConcurrentBatches < batches.length) {
-            await new Promise(resolve => setTimeout(resolve, 500));
-        }
-    }
-    
-    return organizations;
-}
-
-// Optimized result processing with early filtering
-async function processResults(rawResults) {
+function processResults(rawResults) {
     const organizations = [];
     const seenNames = new Set();
     
@@ -386,30 +287,32 @@ async function processResults(rawResults) {
         const tags = element.tags || {};
         const name = tags.name || tags['name:en'] || 'Unnamed Organization';
         
+        // Skip if we've already seen this name (deduplication)
         const normalizedName = name.toLowerCase().trim();
-        if (seenNames.has(normalizedName) || isGenericPark(tags)) {
+        if (seenNames.has(normalizedName)) {
             continue;
         }
         
-        const website = normalizeWebsiteUrl(tags.website || tags['contact:website'] || tags.url);
-        const directContact = tags.email || tags['contact:email'] || tags.phone || tags['contact:phone'] || '';
-        
-        // Quick validation
-        if (!isValidContact(directContact, website)) {
+        // Skip generic or irrelevant entries
+        if (isIrrelevantEntry(tags, name)) {
             continue;
         }
         
         seenNames.add(normalizedName);
         
-        let finalContact = directContact;
-        if (!directContact && website) {
-            finalContact = await findValidContact(website, name) || website;
+        // Extract website
+        let website = tags.website || tags['contact:website'] || tags.url || '';
+        if (website && !website.startsWith('http')) {
+            website = 'https://' + website;
         }
         
+        // Extract contact info
+        let contact = tags.email || tags['contact:email'] || tags.phone || tags['contact:phone'] || '';
+        
         organizations.push({
-            name,
-            website,
-            contact: finalContact,
+            name: name,
+            website: website || '',
+            contact: contact || '',
             lat: element.lat || (element.center && element.center.lat) || 0,
             lon: element.lon || (element.center && element.center.lon) || 0,
             type: getOrganizationType(tags)
@@ -419,129 +322,162 @@ async function processResults(rawResults) {
     return organizations;
 }
 
-// Optimized park filtering
-function isGenericPark(tags) {
-    return (tags.leisure === 'park' && !tags['garden:type'] && !tags.attraction) ||
-           ['playground', 'sports_centre', 'pitch'].includes(tags.leisure) ||
-           tags.amenity === 'parking';
-}
-
-// Optimized contact validation
-function isValidContact(contact, website) {
-    if (contact) {
-        return contact.includes('@') ? isValidEmail(contact) : contact.startsWith('http');
-    }
-    return !!website;
-}
-
-// Optimized organization type mapping
-const TYPE_MAP = {
-    'tourism': {
-        'gallery': 'Art Gallery',
-        'museum': 'Museum',
-        'zoo': 'Zoo',
-        'aquarium': 'Aquarium'
-    },
-    'amenity': {
-        'arts_centre': 'Arts Centre',
-        'library': 'Library',
-        'music_venue': 'Music Venue',
-        'concert_hall': 'Concert Hall',
-        'community_centre': 'Community Arts Centre',
-        'studio': 'Studio'
-    },
-    'historic': {
-        'museum': 'Historical Museum',
-        'heritage': 'Heritage Site',
-        'archaeological_site': 'Archaeological Site'
-    },
-    'craft': {
-        'pottery': 'Pottery Studio',
-        'sculptor': 'Sculpture Studio'
-    }
-};
-
-function getOrganizationType(tags) {
-    for (const [category, types] of Object.entries(TYPE_MAP)) {
-        if (tags[category] && types[tags[category]]) {
-            return types[tags[category]];
-        }
+function isIrrelevantEntry(tags, name) {
+    // Exclude generic infrastructure
+    if (tags.amenity === 'parking' || tags.amenity === 'toilets') return true;
+    if (tags.leisure === 'playground' && !tags.cultural) return true;
+    if (tags.leisure === 'sports_centre' && !tags.cultural) return true;
+    
+    // Exclude very generic parks without cultural significance
+    if (tags.leisure === 'park' && !tags['garden:type'] && !tags.attraction && !tags.historic) {
+        return true;
     }
     
-    if (tags['garden:type'] === 'botanical') return 'Botanical Garden';
-    if (tags.leisure === 'nature_reserve') return 'Nature Centre';
-    if (tags.leisure === 'wildlife_park') return 'Wildlife Park';
-    if (tags.cultural) return 'Cultural Centre';
+    // Exclude generic commercial buildings
+    if (tags.building === 'commercial' && !tags.amenity && !tags.shop && !tags.craft) {
+        return true;
+    }
+    
+    return false;
+}
+
+function getOrganizationType(tags) {
+    // Museums and galleries
+    if (tags.tourism === 'gallery') return 'Art Gallery';
+    if (tags.tourism === 'museum') return 'Museum';
+    if (tags.historic === 'museum') return 'Historical Museum';
+    
+    // Nature and science
+    if (tags.tourism === 'zoo') return 'Zoo';
+    if (tags.tourism === 'aquarium') return 'Aquarium';
+    if (tags.leisure === 'garden' && tags['garden:type'] === 'botanical') return 'Botanical Garden';
+    
+    // Performing arts
+    if (tags.amenity === 'theatre') return 'Theatre';
+    if (tags.amenity === 'cinema') return 'Cinema';
+    if (tags.amenity === 'music_venue') return 'Music Venue';
+    if (tags.amenity === 'concert_hall') return 'Concert Hall';
+    
+    // Arts and culture centres
+    if (tags.amenity === 'arts_centre') return 'Arts Centre';
+    if (tags.amenity === 'community_centre') return 'Community Centre';
+    if (tags.amenity === 'cultural_centre') return 'Cultural Centre';
+    
+    // Educational and libraries
+    if (tags.amenity === 'library') return 'Library';
+    
+    // Studios and workshops
+    if (tags.amenity === 'studio') return 'Studio';
+    if (tags.craft === 'pottery') return 'Pottery Studio';
+    if (tags.craft === 'artist') return 'Artist Studio';
+    if (tags.shop === 'art') return 'Art Shop';
+    
+    // Historical sites
+    if (tags.historic === 'heritage') return 'Heritage Site';
+    if (tags.historic === 'castle') return 'Historic Castle';
+    if (tags.historic === 'monument') return 'Monument';
     
     return 'Cultural Organization';
 }
 
-// Optimized results display with document fragments
 function displayResults(organizations) {
-    const resultsSection = domElements['results-section'];
-    const resultsCount = domElements['results-count'];
-    const resultsTbody = domElements['results-tbody'];
-    const resultsTableContainer = domElements['results-table-container'];
-    const downloadCsvBtn = domElements['download-csv'];
+    console.log('displayResults called with', organizations.length, 'organizations');
     
-    if (!resultsSection || !resultsCount || !resultsTbody) return;
+    if (!resultsSection || !resultsCount || !resultsTbody) {
+        console.error('Required elements not found for displaying results');
+        return;
+    }
     
     resultsSection.style.display = 'block';
     resultsCount.textContent = `${organizations.length} organization${organizations.length !== 1 ? 's' : ''} found`;
     
     if (organizations.length === 0) {
-        if (resultsTableContainer) resultsTableContainer.style.display = 'none';
-        if (downloadCsvBtn) downloadCsvBtn.disabled = true;
-        showError('No arts or cultural organizations with contact information found in this area. Try expanding your search radius or a different location.');
+        tableContainer.style.display = 'none';
+        downloadCsvBtn.disabled = true;
+        showError('No arts or cultural organizations found in this area. Try expanding your search radius or a different location.');
         return;
     }
     
-    // Use document fragment for better performance
-    const fragment = document.createDocumentFragment();
+    // Clear previous results
+    resultsTbody.innerHTML = '';
     
+    // Add rows to table
     organizations.forEach(org => {
         const row = document.createElement('tr');
         
-        // Create cells efficiently
-        const cells = [
-            org.name,
-            org.website ? `<a href="${org.website}" target="_blank" rel="noopener noreferrer">${org.website}</a>` : '-',
-            formatContact(org.contact),
-            org.type
-        ];
+        // Name column
+        const nameCell = document.createElement('td');
+        nameCell.textContent = org.name;
+        row.appendChild(nameCell);
         
-        cells.forEach(cellContent => {
-            const cell = document.createElement('td');
-            cell.innerHTML = cellContent;
-            row.appendChild(cell);
-        });
+        // Type column
+        const typeCell = document.createElement('td');
+        const typeBadge = document.createElement('span');
+        typeBadge.className = `type-badge ${getTypeBadgeClass(org.type)}`;
+        typeBadge.textContent = org.type;
+        typeCell.appendChild(typeBadge);
+        row.appendChild(typeCell);
         
-        fragment.appendChild(row);
+        // Website column
+        const websiteCell = document.createElement('td');
+        if (org.website) {
+            const link = document.createElement('a');
+            link.href = org.website;
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+            link.className = 'table-link';
+            link.textContent = 'Visit Website';
+            websiteCell.appendChild(link);
+        } else {
+            websiteCell.textContent = '-';
+        }
+        row.appendChild(websiteCell);
+        
+        // Contact column
+        const contactCell = document.createElement('td');
+        if (org.contact) {
+            if (org.contact.includes('@')) {
+                const emailLink = document.createElement('a');
+                emailLink.href = `mailto:${org.contact}`;
+                emailLink.className = 'table-link';
+                emailLink.textContent = org.contact;
+                contactCell.appendChild(emailLink);
+            } else {
+                contactCell.textContent = org.contact;
+            }
+        } else {
+            contactCell.textContent = '-';
+        }
+        row.appendChild(contactCell);
+        
+        resultsTbody.appendChild(row);
     });
     
-    // Single DOM update
-    resultsTbody.innerHTML = '';
-    resultsTbody.appendChild(fragment);
+    tableContainer.style.display = 'block';
+    downloadCsvBtn.disabled = false;
     
-    if (resultsTableContainer) resultsTableContainer.style.display = 'block';
-    if (downloadCsvBtn) downloadCsvBtn.disabled = false;
-    
+    // Reset sorting
     resetSortIndicators();
-}
-
-// Helper function for contact formatting
-function formatContact(contact) {
-    if (!contact) return '-';
     
-    if (contact.includes('@')) {
-        return `<a href="mailto:${contact}" class="contact-info">${contact}</a>`;
-    } else if (contact.startsWith('http')) {
-        return `<a href="${contact}" target="_blank" rel="noopener noreferrer" class="contact-info">Contact Page</a>`;
-    }
-    return contact;
+    console.log('Results displayed successfully');
 }
 
-// Optimized sorting with memoization
+function getTypeBadgeClass(type) {
+    const typeMap = {
+        'Museum': 'type-museum',
+        'Historical Museum': 'type-museum',
+        'Art Gallery': 'type-gallery',
+        'Theatre': 'type-theatre',
+        'Cinema': 'type-theatre',
+        'Library': 'type-library',
+        'Arts Centre': 'type-arts-centre',
+        'Community Centre': 'type-arts-centre',
+        'Cultural Centre': 'type-arts-centre'
+    };
+    
+    return typeMap[type] || 'type-other';
+}
+
 function handleSort(column) {
     if (currentSortColumn === column) {
         currentSortDirection = currentSortDirection === 'asc' ? 'desc' : 'asc';
@@ -550,126 +486,156 @@ function handleSort(column) {
         currentSortDirection = 'asc';
     }
     
-    const multiplier = currentSortDirection === 'asc' ? 1 : -1;
-    
-    currentResults.sort((a, b) => {
-        const aValue = String(a[column] || '');
-        const bValue = String(b[column] || '');
+    // Sort the results
+    const sortedResults = [...currentResults].sort((a, b) => {
+        let aValue = a[column] || '';
+        let bValue = b[column] || '';
         
+        // Handle empty values
         if (!aValue && !bValue) return 0;
         if (!aValue) return 1;
         if (!bValue) return -1;
         
-        return aValue.localeCompare(bValue) * multiplier;
+        // Convert to string for comparison
+        aValue = String(aValue);
+        bValue = String(bValue);
+        
+        // Compare values
+        const comparison = aValue.localeCompare(bValue);
+        return currentSortDirection === 'asc' ? comparison : -comparison;
     });
     
+    // Update UI
     updateSortIndicators();
-    displayResults(currentResults);
+    displayResults(sortedResults);
 }
 
-// Optimized sort indicators
 function updateSortIndicators() {
-    const sortableHeaders = document.querySelectorAll('.sortable');
-    sortableHeaders.forEach(header => {
-        header.className = header.className.replace(/\s*(asc|desc)/g, '');
+    document.querySelectorAll('.sortable').forEach(header => {
+        const indicator = header.querySelector('.sort-indicator');
+        header.classList.remove('asc', 'desc');
+        
         if (header.dataset.column === currentSortColumn) {
             header.classList.add(currentSortDirection);
+            indicator.textContent = currentSortDirection === 'asc' ? '↑' : '↓';
+        } else {
+            indicator.textContent = '↕';
         }
     });
 }
 
 function resetSortIndicators() {
-    const sortableHeaders = document.querySelectorAll('.sortable');
-    sortableHeaders.forEach(header => {
-        header.className = header.className.replace(/\s*(asc|desc)/g, '');
+    document.querySelectorAll('.sortable').forEach(header => {
+        const indicator = header.querySelector('.sort-indicator');
+        header.classList.remove('asc', 'desc');
+        indicator.textContent = '↕';
     });
     currentSortColumn = null;
     currentSortDirection = 'asc';
 }
 
-// Optimized CSV download
 function downloadCsv() {
-    if (currentResults.length === 0) return;
+    if (currentResults.length === 0) {
+        return;
+    }
     
-    const csvRows = ['Organization Name,Website,Contact,Type'];
+    // Create CSV content
+    const csvHeaders = ['Organization Name', 'Type', 'Website', 'Contact'];
+    const csvRows = [csvHeaders.join(',')];
     
     currentResults.forEach(org => {
         const row = [
             escapeCsvValue(org.name),
+            escapeCsvValue(org.type),
             escapeCsvValue(org.website),
-            escapeCsvValue(org.contact),
-            escapeCsvValue(org.type)
-        ].join(',');
-        csvRows.push(row);
+            escapeCsvValue(org.contact)
+        ];
+        csvRows.push(row.join(','));
     });
     
     const csvContent = csvRows.join('\n');
+    
+    // Create and download file
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    
     const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.href = url;
     
-    const locationInput = domElements['location-input'];
-    const location = (locationInput?.value || 'search').replace(/[^a-zA-Z0-9]/g, '_');
-    const date = new Date().toISOString().split('T')[0];
-    link.download = `arts_organizations_${location}_${date}.csv`;
-    
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    if (link.download !== undefined) {
+        const url = URL.createObjectURL(blob);
+        link.setAttribute('href', url);
+        
+        // Generate filename with location and date
+        const location = (locationInput?.value || 'search').replace(/[^a-zA-Z0-9]/g, '_');
+        const date = new Date().toISOString().split('T')[0];
+        link.setAttribute('download', `arts_organizations_${location}_${date}.csv`);
+        
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        // Clean up
+        URL.revokeObjectURL(url);
+    }
 }
 
-// Optimized CSV escaping
 function escapeCsvValue(value) {
     if (!value) return '';
     
+    // Convert to string and handle special characters
     const stringValue = String(value);
-    return stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')
-        ? '"' + stringValue.replace(/"/g, '""') + '"'
-        : stringValue;
+    
+    // If value contains comma, quote, or newline, wrap in quotes and escape internal quotes
+    if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')) {
+        return '"' + stringValue.replace(/"/g, '""') + '"';
+    }
+    
+    return stringValue;
 }
 
-// Optimized state management
 function showLoading() {
-    const loadingSpinner = domElements['loading-spinner'];
-    const resultsTableContainer = domElements['results-table-container'];
-    const searchBtn = domElements['search-btn'];
+    console.log('showLoading called');
     
-    if (loadingSpinner) loadingSpinner.style.display = 'flex';
-    if (resultsTableContainer) resultsTableContainer.style.display = 'none';
+    if (loadingContainer) {
+        loadingContainer.style.display = 'flex';
+    }
+    if (tableContainer) {
+        tableContainer.style.display = 'none';
+    }
     if (searchBtn) {
         searchBtn.disabled = true;
-        searchBtn.textContent = 'Searching...';
+        searchBtn.textContent = '🔍 Searching...';
     }
 }
 
 function hideLoading() {
-    const loadingSpinner = domElements['loading-spinner'];
-    const searchBtn = domElements['search-btn'];
+    console.log('hideLoading called');
     
-    if (loadingSpinner) loadingSpinner.style.display = 'none';
+    if (loadingContainer) {
+        loadingContainer.style.display = 'none';
+    }
     if (searchBtn) {
         searchBtn.disabled = false;
-        searchBtn.textContent = 'Find Partners';
+        searchBtn.textContent = '🎨 Find Cultural Partners';
     }
 }
 
 function showError(message) {
-    const errorMessage = domElements['error-message'];
-    const resultsTableContainer = domElements['results-table-container'];
-    const downloadCsvBtn = domElements['download-csv'];
+    console.log('showError called:', message);
     
     if (errorMessage) {
         errorMessage.textContent = message;
         errorMessage.style.display = 'block';
     }
-    if (resultsTableContainer) resultsTableContainer.style.display = 'none';
-    if (downloadCsvBtn) downloadCsvBtn.disabled = true;
+    if (tableContainer) {
+        tableContainer.style.display = 'none';
+    }
+    if (downloadCsvBtn) {
+        downloadCsvBtn.disabled = true;
+    }
 }
 
 function hideError() {
-    const errorMessage = domElements['error-message'];
-    if (errorMessage) errorMessage.style.display = 'none';
+    if (errorMessage) {
+        errorMessage.style.display = 'none';
+    }
 }

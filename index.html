@@ -3,108 +3,110 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Art Pharmacy Organization Finder</title>
+    <title>Art Pharmacy - Cultural Organization Finder</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="container">
         <header class="header">
-            <h1>Art Pharmacy</h1>
-            <p class="header__subtitle">Arts and Cultural Organization Finder</p>
+            <div class="header-content">
+                <h1>Art Pharmacy</h1>
+                <p class="header-subtitle">Discover Arts & Cultural Organizations Near You</p>
+            </div>
         </header>
 
-        <main class="main-content">
-            <div class="search-section">
-                <div class="card">
-                    <div class="card__body">
-                        <div class="form-group">
-                            <label for="location-input" class="form-label">Location</label>
-                            <input 
-                                type="text" 
-                                id="location-input" 
-                                class="form-control" 
-                                placeholder="Enter city, state, or address (e.g., Philadelphia, PA)"
-                                required
-                            >
-                        </div>
+        <main>
+            <section class="search-section">
+                <div class="form-group">
+                    <label for="location-input" class="form-label">Location</label>
+                    <input 
+                        type="text" 
+                        id="location-input" 
+                        class="form-input" 
+                        placeholder="Enter city, state, or address (e.g., Philadelphia, PA)"
+                        required
+                    >
+                </div>
 
-                        <div class="form-group">
-                            <label for="radius-slider" class="form-label">
-                                Search Radius: <span id="radius-display">25 km</span>
-                            </label>
-                            <input 
-                                type="range" 
-                                id="radius-slider" 
-                                class="radius-slider"
-                                min="5" 
-                                max="50" 
-                                value="25"
-                                step="5"
-                            >
-                            <div class="radius-labels">
-                                <span>5 km</span>
-                                <span>50 km</span>
-                            </div>
-                        </div>
-
-                        <button 
-                            id="search-btn" 
-                            class="btn btn--primary btn--full-width"
-                            type="button"
+                <div class="form-group">
+                    <label for="radius-slider" class="form-label">
+                        Search Radius: <span id="radius-display" class="range-value">25 km</span>
+                    </label>
+                    <div class="range-container">
+                        <input 
+                            type="range" 
+                            id="radius-slider" 
+                            class="range-input"
+                            min="5" 
+                            max="50" 
+                            value="25"
+                            step="5"
                         >
-                            Find Partners
-                        </button>
+                        <div class="range-labels">
+                            <span>5 km</span>
+                            <span>50 km</span>
+                        </div>
                     </div>
                 </div>
-            </div>
 
-            <div class="results-section" id="results-section" style="display: none;">
+                <button 
+                    id="search-btn" 
+                    class="btn btn-primary btn-full"
+                    type="button"
+                >
+                    🎨 Find Cultural Partners
+                </button>
+            </section>
+
+            <section class="results-section" id="results-section" style="display: none;">
                 <div class="results-header">
-                    <h2>Search Results</h2>
+                    <h2 class="results-title">Search Results</h2>
                     <div class="results-actions">
                         <span id="results-count" class="results-count">0 organizations found</span>
-                        <button id="download-csv" class="btn btn--secondary" disabled>
-                            Download CSV
+                        <button id="download-csv" class="btn btn-secondary" disabled>
+                            📥 Download CSV
                         </button>
                     </div>
                 </div>
 
-                <div class="results-container">
-                    <div id="loading-spinner" class="loading-spinner" style="display: none;">
-                        <div class="spinner"></div>
-                        <p>Searching for arts organizations...</p>
-                    </div>
-
-                    <div id="error-message" class="error-message" style="display: none;"></div>
-
-                    <div id="results-table-container" style="display: none;">
-                        <table id="results-table" class="results-table">
-                            <thead>
-                                <tr>
-                                    <th class="sortable" data-column="name">
-                                        Organization Name
-                                        <span class="sort-indicator"></span>
-                                    </th>
-                                    <th class="sortable" data-column="website">
-                                        Website
-                                        <span class="sort-indicator"></span>
-                                    </th>
-                                    <th class="sortable" data-column="contact">
-                                        Contact
-                                        <span class="sort-indicator"></span>
-                                    </th>
-                                </tr>
-                            </thead>
-                            <tbody id="results-tbody">
-                            </tbody>
-                        </table>
-                    </div>
+                <div id="loading-container" class="loading-container" style="display: none;">
+                    <div class="loading-spinner"></div>
+                    <p class="loading-text">Searching for arts organizations...</p>
                 </div>
-            </div>
+
+                <div id="error-message" class="error-message" style="display: none;"></div>
+
+                <div id="table-container" class="table-container" style="display: none;">
+                    <table class="results-table">
+                        <thead>
+                            <tr>
+                                <th class="sortable" data-column="name">
+                                    Organization Name
+                                    <span class="sort-indicator">↕</span>
+                                </th>
+                                <th class="sortable" data-column="type">
+                                    Type
+                                    <span class="sort-indicator">↕</span>
+                                </th>
+                                <th class="sortable" data-column="website">
+                                    Website
+                                    <span class="sort-indicator">↕</span>
+                                </th>
+                                <th class="sortable" data-column="contact">
+                                    Contact
+                                    <span class="sort-indicator">↕</span>
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody id="results-tbody">
+                        </tbody>
+                    </table>
+                </div>
+            </section>
         </main>
 
         <footer class="footer">
-            <p>&copy; 2025 Art Pharmacy. OpenStreetMap data.</p>
+            <p>&copy; 2025 Art Pharmacy. Data from OpenStreetMap contributors.</p>
         </footer>
     </div>
 
