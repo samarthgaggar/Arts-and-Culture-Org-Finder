@@ -3,39 +3,62 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Art Pharmacy - Cultural Organization Finder</title>
+    <title>Cultural Arts Partner Finder | Discover Local Arts Organizations</title>
+    <meta name="description" content="Find museums, galleries, theaters, and cultural centers in your area. Connect with local arts organizations and cultural partners.">
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Custom Styles -->
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <div class="hero-section">
-        <div class="hero-content">
-            <h1 class="hero-title">Arts And Culture Organization Finder</h1>
-            <p class="hero-subtitle">Find Local Partners in your Area</p>
+
+    
+    <!-- Hero Section -->
+    <header class="hero-section">
+        <div class="container">
+            <div class="hero-content">
+                <h1 class="hero-title">
+                    <i class="fas fa-palette"></i>
+                    Arts & Culture Partner Finder
+                </h1>
+                <p class="hero-subtitle">
+                    Find Arts and Cultures Partners in any area
+                </p>
+            </div>
         </div>
+    </header>
 
-    <footer class="footer">
-        <p>&copy; 2025 Samarth Gaggar. Data from OpenStreetMap contributors.</p>
-    </footer>
-    </div>
-
-    <div class="container">
-        <main>
-            <section class="search-section">
-                <div class="search-card">
+    <!-- Main Content -->
+    <main class="container">
+        <!-- Search Section -->
+        <section class="search-section">
+            <div class="search-card">
+                <form id="search-form">
                     <div class="form-group">
-                        <label for="location-input" class="form-label">Location</label>
+                        <label for="location-input" class="form-label">
+                            <i class="fas fa-map-marker-alt"></i> Location
+                        </label>
                         <input 
                             type="text" 
                             id="location-input" 
                             class="form-input" 
                             placeholder="Enter city, state, or address"
                             required
+                            autocomplete="off"
                         >
                     </div>
 
                     <div class="form-group">
                         <label for="radius-slider" class="form-label">
-                            Search Radius: <span id="radius-display" class="range-value">25 km</span>
+                            <i class="fas fa-radar"></i> Search Radius: 
+                            <span id="radius-display" class="range-value">25 km</span>
                         </label>
                         <div class="range-container">
                             <input 
@@ -48,8 +71,8 @@
                                 step="5"
                             >
                             <div class="range-labels">
-                                <span>5 km</span>
-                                <span>50 km</span>
+                                <span><i class="fas fa-compress"></i> 5 km</span>
+                                <span><i class="fas fa-expand"></i> 50 km</span>
                             </div>
                         </div>
                     </div>
@@ -59,59 +82,104 @@
                         class="btn btn-primary btn-full"
                         type="button"
                     >
-                        Find Partners
+                        <i class="fas fa-search"></i>
+                        <span>Discover Cultural Partners</span>
+                    </button>
+                </form>
+            </div>
+        </section>
+
+        <!-- Results Section -->
+        <section class="results-section" id="results-section" style="display: none;">
+            <div class="results-header">
+                <h2 class="results-title">
+                    <i class="fas fa-landmark"></i> Discovered Organizations
+                </h2>
+                <div class="results-actions">
+                    <span id="results-count" class="results-count">
+                        <i class="fas fa-list"></i> 0 organizations found
+                    </span>
+                    <button id="download-csv" class="btn btn-secondary" disabled>
+                        <i class="fas fa-download"></i> Export Data
                     </button>
                 </div>
-            </section>
+            </div>
 
-            <section class="results-section" id="results-section" style="display: none;">
-                <div class="results-header">
-                    <h2 class="results-title">Search Results</h2>
-                    <div class="results-actions">
-                        <span id="results-count" class="results-count">0 organizations found</span>
-                        <button id="download-csv" class="btn btn-secondary" disabled>
-                            Download CSV
-                        </button>
-                    </div>
-                </div>
+            <div id="loading-container" class="loading-container" style="display: none;">
+                <div class="loading-spinner"></div>
+                <p class="loading-text">Searching for cultural organizations...</p>
+            </div>
 
-                <div id="loading-container" class="loading-container" style="display: none;">
-                    <div class="loading-spinner"></div>
-                    <p class="loading-text">Searching for arts organizations...</p>
-                </div>
+            <div id="error-message" class="error-message" style="display: none;">
+                <i class="fas fa-exclamation-triangle"></i>
+                <span></span>
+            </div>
 
-                <div id="error-message" class="error-message" style="display: none;"></div>
+            <div id="table-container" class="table-container" style="display: none;">
+                <table class="results-table">
+                    <thead>
+                        <tr>
+                            <th class="sortable" data-column="name">
+                                <i class="fas fa-building"></i> Organization
+                                <span class="sort-indicator">↕</span>
+                            </th>
+                            <th class="sortable" data-column="website">
+                                <i class="fas fa-globe"></i> Website
+                                <span class="sort-indicator">↕</span>
+                            </th>
+                            <th class="sortable" data-column="contact">
+                                <i class="fas fa-envelope"></i> Contact
+                                <span class="sort-indicator">↕</span>
+                            </th>
+                            <th class="sortable" data-column="type">
+                                <i class="fas fa-tag"></i> Type
+                                <span class="sort-indicator">↕</span>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody id="results-tbody">
+                        <!-- Results will be populated here -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </main>
 
-                <div id="table-container" class="table-container" style="display: none;">
-                    <table class="results-table">
-                        <thead>
-                            <tr>
-                                <th class="sortable" data-column="name">
-                                    Organization Name
-                                    <span class="sort-indicator">↕</span>
-                                </th>
-                                <th class="sortable" data-column="website">
-                                    Website
-                                    <span class="sort-indicator">↕</span>
-                                </th>
-                                <th class="sortable" data-column="contact">
-                                    Contact
-                                    <span class="sort-indicator">↕</span>
-                                </th>
-                                <th class="sortable" data-column="type">
-                                    Type
-                                    <span class="sort-indicator">↕</span>
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody id="results-tbody">
-                        </tbody>
-                    </table>
-                </div>
-            </section>
-        </main>
-    </div>
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <p>
+                <i class="fas fa-heart"></i> 
+                Created by Samarth Gaggar | 
+                <i class="fas fa-database"></i> 
+                Data sources: OpenStreetMap, Foursquare, Wikipedia
+            </p>
+        </div>
+    </footer>
 
+    <!-- Scripts -->
     <script src="app.js"></script>
+    <script>
+        // Enhanced interactivity
+        document.addEventListener('DOMContentLoaded', () => {
+            // Range slider with dynamic gradient
+            const slider = document.getElementById('radius-slider');
+            const display = document.getElementById('radius-display');
+            
+            if (slider && display) {
+                const updateSlider = () => {
+                    const value = slider.value;
+                    const percentage = ((value - slider.min) / (slider.max - slider.min)) * 100;
+                    slider.style.setProperty('--value', percentage + '%');
+                    display.textContent = value + ' km';
+                };
+                
+                slider.addEventListener('input', updateSlider);
+                updateSlider();
+            }
+        });
+    </script>
+</body>
+</html>
 </body>
 </html>
