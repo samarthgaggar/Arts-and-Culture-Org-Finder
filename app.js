@@ -1,67 +1,4 @@
-function updateTableBody(organizations) {
-    // Clear current table body
-    elements.resultsTbody.innerHTML = '';
-    
-    // Add each organization to the table
-    organizations.forEach(org => {
-        const row = document.createElement('tr');
-        
-        // Name cell
-        const nameCell = document.createElement('td');
-        nameCell.textContent = org.name;
-        row.appendChild(nameCell);
-        
-        // Website cell
-        const websiteCell = document.createElement('td');
-        if (org.website) {
-            const link = document.createElement('a');
-            link.href = org.website.startsWith('http') ? org.website : `https://${org.website}`;
-            link.textContent = 'Visit Website';
-            link.className = 'table-link';
-            link.target = '_blank';
-            link.rel = 'noopener noreferrer';
-            websiteCell.appendChild(link);
-        } else {
-            websiteCell.textContent = '-';
-        }
-        row.appendChild(websiteCell);
-        
-        // Contact cell
-        const contactCell = document.createElement('td');
-        if (org.email) {
-            const mailLink = document.createElement('a');
-            mailLink.href = `mailto:${org.email}`;
-            mailLink.textContent = org.email;
-            mailLink.className = 'table-link';
-            contactCell.appendChild(mailLink);
-        } else if (org.phone) {
-            const phoneLink = document.createElement('a');
-            phoneLink.href = `tel:${org.phone.replace(/[^\d+]/g, '')}`;
-            phoneLink.textContent = org.phone;
-            phoneLink.className = 'table-link';
-            contactCell.appendChild(phoneLink);
-        } else {
-            contactCell.textContent = '-';
-        }
-        row.appendChild(contactCell);
-        
-        // Type cell
-        const typeCell = document.createElement('td');
-        const badge = document.createElement('span');
-        badge.className = `type-badge ${getBadgeClass(org.type)}`;
-        badge.textContent = org.type;
-        typeCell.appendChild(badge);
-        row.appendChild(typeCell);
-        
-        elements.resultsTbody.appendChild(row);
-    });
-    
-    // Update the results count
-    elements.resultsCount.textContent = `${organizations.length} organization${organizations.length !== 1 ? 's' : ''} found`;
-    
-    // Store the current sorted results
-    currentResults = organizations;
-}// Global variables
+// Global variables
 let currentResults = [];
 let currentSortColumn = null;
 let currentSortDirection = 'asc';
@@ -136,7 +73,7 @@ async function handleSearch() {
         console.log('Location found:', coords);
         
         // Step 2: Search for cultural organizations
-        updateLoadingMessage('Searching for cultural organizations...');
+        updateLoadingMessage('Searching for cultural, wellness, and nature organizations...');
         const radius = parseInt(elements.radiusSlider?.value || 25) * 1000; // Convert to meters
         const organizations = await searchCulturalOrganizations(coords, radius);
         
@@ -184,7 +121,6 @@ async function searchCulturalOrganizations(coords, radiusMeters) {
             // Museums and galleries
             node["tourism"="museum"](around:${radiusMeters},${coords.lat},${coords.lon});
             way["tourism"="museum"](around:${radiusMeters},${coords.lat},${coords.lon});
-            relation["tourism"="museum"](around:${radiusMeters},${coords.lat},${coords.lon});
             
             node["tourism"="gallery"](around:${radiusMeters},${coords.lat},${coords.lon});
             way["tourism"="gallery"](around:${radiusMeters},${coords.lat},${coords.lon});
@@ -202,12 +138,43 @@ async function searchCulturalOrganizations(coords, radiusMeters) {
             node["amenity"="community_centre"](around:${radiusMeters},${coords.lat},${coords.lon});
             way["amenity"="community_centre"](around:${radiusMeters},${coords.lat},${coords.lon});
             
-            // Botanical gardens and conservatories (managed venues with contact info)
+            // Gardens and nature (only managed facilities with contact info)
             node["leisure"="botanical_garden"](around:${radiusMeters},${coords.lat},${coords.lon});
             way["leisure"="botanical_garden"](around:${radiusMeters},${coords.lat},${coords.lon});
             
-            node["amenity"="botanical_garden"](around:${radiusMeters},${coords.lat},${coords.lon});
-            way["amenity"="botanical_garden"](around:${radiusMeters},${coords.lat},${coords.lon});
+            node["tourism"="zoo"](around:${radiusMeters},${coords.lat},${coords.lon});
+            way["tourism"="zoo"](around:${radiusMeters},${coords.lat},${coords.lon});
+            
+            node["tourism"="aquarium"](around:${radiusMeters},${coords.lat},${coords.lon});
+            way["tourism"="aquarium"](around:${radiusMeters},${coords.lat},${coords.lon});
+            
+            node["leisure"="nature_reserve"]["visitor_centre"="yes"](around:${radiusMeters},${coords.lat},${coords.lon});
+            way["leisure"="nature_reserve"]["visitor_centre"="yes"](around:${radiusMeters},${coords.lat},${coords.lon});
+            
+            node["amenity"="visitor_centre"](around:${radiusMeters},${coords.lat},${coords.lon});
+            way["amenity"="visitor_centre"](around:${radiusMeters},${coords.lat},${coords.lon});
+            
+            node["information"="visitor_centre"](around:${radiusMeters},${coords.lat},${coords.lon});
+            way["information"="visitor_centre"](around:${radiusMeters},${coords.lat},${coords.lon});
+            
+            // Health and wellness
+            node["leisure"="spa"](around:${radiusMeters},${coords.lat},${coords.lon});
+            way["leisure"="spa"](around:${radiusMeters},${coords.lat},${coords.lon});
+            
+            node["amenity"="spa"](around:${radiusMeters},${coords.lat},${coords.lon});
+            way["amenity"="spa"](around:${radiusMeters},${coords.lat},${coords.lon});
+            
+            node["leisure"="yoga"](around:${radiusMeters},${coords.lat},${coords.lon});
+            way["leisure"="yoga"](around:${radiusMeters},${coords.lat},${coords.lon});
+            
+            node["sport"="yoga"](around:${radiusMeters},${coords.lat},${coords.lon});
+            way["sport"="yoga"](around:${radiusMeters},${coords.lat},${coords.lon});
+            
+            node["sport"="pilates"](around:${radiusMeters},${coords.lat},${coords.lon});
+            way["sport"="pilates"](around:${radiusMeters},${coords.lat},${coords.lon});
+            
+            node["leisure"="dance"](around:${radiusMeters},${coords.lat},${coords.lon});
+            way["leisure"="dance"](around:${radiusMeters},${coords.lat},${coords.lon});
             
             // Cultural facilities
             node["amenity"="cultural_centre"](around:${radiusMeters},${coords.lat},${coords.lon});
@@ -216,37 +183,19 @@ async function searchCulturalOrganizations(coords, radiusMeters) {
             node["amenity"="exhibition_centre"](around:${radiusMeters},${coords.lat},${coords.lon});
             way["amenity"="exhibition_centre"](around:${radiusMeters},${coords.lat},${coords.lon});
             
-            // Historic sites with visitor centers
-            node["tourism"="attraction"]["historic"="yes"](around:${radiusMeters},${coords.lat},${coords.lon});
-            way["tourism"="attraction"]["historic"="yes"](around:${radiusMeters},${coords.lat},${coords.lon});
-            
+            // Historic sites
             node["historic"="museum"](around:${radiusMeters},${coords.lat},${coords.lon});
             way["historic"="museum"](around:${radiusMeters},${coords.lat},${coords.lon});
             
-            // Outdoor galleries (managed spaces)
-            node["amenity"="outdoor_gallery"](around:${radiusMeters},${coords.lat},${coords.lon});
-            way["amenity"="outdoor_gallery"](around:${radiusMeters},${coords.lat},${coords.lon});
+            node["tourism"="attraction"]["historic"="yes"](around:${radiusMeters},${coords.lat},${coords.lon});
+            way["tourism"="attraction"]["historic"="yes"](around:${radiusMeters},${coords.lat},${coords.lon});
             
-            node["tourism"="gallery"]["outdoor"="yes"](around:${radiusMeters},${coords.lat},${coords.lon});
-            way["tourism"="gallery"]["outdoor"="yes"](around:${radiusMeters},${coords.lat},${coords.lon});
-            
-            // Maker spaces and workshops (only pottery and general art)
-            node["amenity"="workshop"]["workshop:type"~"art|craft|pottery"](around:${radiusMeters},${coords.lat},${coords.lon});
-            way["amenity"="workshop"]["workshop:type"~"art|craft|pottery"](around:${radiusMeters},${coords.lat},${coords.lon});
-            
+            // Creative spaces
             node["craft"~"pottery|artist"](around:${radiusMeters},${coords.lat},${coords.lon});
             way["craft"~"pottery|artist"](around:${radiusMeters},${coords.lat},${coords.lon});
             
-            // Dance studios and yoga centers
-            node["leisure"="dance"](around:${radiusMeters},${coords.lat},${coords.lon});
-            way["leisure"="dance"](around:${radiusMeters},${coords.lat},${coords.lon});
-            
-            node["sport"="yoga"](around:${radiusMeters},${coords.lat},${coords.lon});
-            way["sport"="yoga"](around:${radiusMeters},${coords.lat},${coords.lon});
-            
-            // Exclude retail
-            node["building"="museum"]["shop"!="yes"](around:${radiusMeters},${coords.lat},${coords.lon});
-            way["building"="museum"]["shop"!="yes"](around:${radiusMeters},${coords.lat},${coords.lon});
+            node["amenity"="workshop"]["workshop:type"~"art|craft|pottery"](around:${radiusMeters},${coords.lat},${coords.lon});
+            way["amenity"="workshop"]["workshop:type"~"art|craft|pottery"](around:${radiusMeters},${coords.lat},${coords.lon});
         );
         out body;
         >;
@@ -282,12 +231,14 @@ async function searchCulturalOrganizations(coords, radiusMeters) {
             seen.add(key);
             
             // Extract organization data
+            const website = extractWebsite(element.tags);
             const org = {
                 name: name,
                 type: getOrgType(element.tags),
-                website: extractWebsite(element.tags),
+                website: website,
                 email: extractEmail(element.tags),
                 phone: extractPhone(element.tags),
+                contactPage: website ? generateContactPageUrl(website) : '',
                 address: extractAddress(element.tags),
                 lat: element.lat || element.center?.lat,
                 lon: element.lon || element.center?.lon
@@ -295,11 +246,6 @@ async function searchCulturalOrganizations(coords, radiusMeters) {
             
             organizations.push(org);
         });
-        
-        // If no organizations found, return a message
-        if (organizations.length === 0) {
-            console.log('No organizations found in OpenStreetMap data');
-        }
         
         return organizations;
         
@@ -310,12 +256,17 @@ async function searchCulturalOrganizations(coords, radiusMeters) {
 }
 
 function isExcluded(tags, name) {
-    const excludedAmenities = ['university', 'college', 'school', 'kindergarten', 'music_school', 
-                              'conference_centre', 'shop', 'marketplace', 'supermarket', 'mall',
-                              'concert_hall', 'music_venue', 'events_venue', 'dojo'];
-    const excludedWords = ['university', 'college', 'school', 'academy', 'institute', 'campus', 
-                          'student', 'retail', 'shop', 'store', 'boutique', 'mall', 'market',
-                          'concert', 'symphony', 'philharmonic'];
+    const excludedAmenities = [
+        'university', 'college', 'school', 'kindergarten', 'music_school',
+        'conference_centre', 'shop', 'marketplace', 'supermarket', 'mall',
+        'concert_hall', 'music_venue', 'events_venue', 'dojo'
+    ];
+    
+    const excludedWords = [
+        'university', 'college', 'school', 'academy', 'institute', 'campus',
+        'student', 'retail', 'shop', 'store', 'boutique', 'mall', 'market',
+        'concert', 'symphony', 'philharmonic'
+    ];
     
     // Check amenity type
     if (excludedAmenities.includes(tags.amenity)) return true;
@@ -326,9 +277,6 @@ function isExcluded(tags, name) {
     // Check building type
     if (tags.building === 'university' || tags.building === 'college' || tags.building === 'retail') return true;
     
-    // Check craft type
-    if (tags.craft === 'glass_blower' || tags.craft === 'sculptor') return true;
-    
     // Check name
     const nameLower = name.toLowerCase();
     if (excludedWords.some(word => nameLower.includes(word))) return true;
@@ -336,81 +284,66 @@ function isExcluded(tags, name) {
     // Check if it's a library at a school
     if (tags.amenity === 'library' && tags['library:type'] === 'academic') return true;
     
-    // Exclude nightclubs and bars
+    // Exclude generic parks without facilities
+    if (tags.leisure === 'park' && !tags.operator && !tags.website) return true;
+    if (tags.leisure === 'garden' && !tags.operator && !tags.website && tags['garden:type'] !== 'botanical') return true;
+    if (tags.leisure === 'nature_reserve' && tags.visitor_centre !== 'yes') return true;
+    
+    // Exclude bars and nightclubs
     if (tags.amenity === 'nightclub' || tags.amenity === 'bar' || tags.amenity === 'pub') return true;
-    
-    // Exclude generic parks and public art without organization
-    if (tags.leisure === 'park' && !tags['park:type']) return true;
-    if (tags.tourism === 'artwork' && !tags.museum && !tags.gallery) return true;
-    if (tags.leisure === 'garden' && !tags.operator && !tags.website) return true;
-    
-    // Exclude monuments and memorials without visitor centers
-    if ((tags.historic === 'monument' || tags.historic === 'memorial') && !tags.tourism && !tags.museum) return true;
     
     return false;
 }
 
 function getOrgType(tags) {
-    // Museums and galleries
     if (tags.tourism === 'museum') return 'Museum';
     if (tags.tourism === 'gallery') return 'Art Gallery';
-    if (tags.amenity === 'outdoor_gallery' || (tags.tourism === 'gallery' && tags.outdoor === 'yes')) return 'Outdoor Gallery';
-    
-    // Arts and cultural centers
     if (tags.amenity === 'arts_centre' || tags.leisure === 'arts_centre') return 'Arts Center';
-    if (tags.amenity === 'cultural_centre') return 'Cultural Center';
     if (tags.amenity === 'theatre') return 'Theatre';
-    
-    // Community spaces
     if (tags.amenity === 'library') return 'Library';
     if (tags.amenity === 'community_centre') return 'Community Center';
     if (tags.amenity === 'exhibition_centre') return 'Exhibition Center';
+    if (tags.amenity === 'cultural_centre') return 'Cultural Center';
     
-    // Gardens (only managed botanical gardens)
-    if (tags.leisure === 'botanical_garden' || tags.amenity === 'botanical_garden') return 'Botanical Garden';
+    // Nature and gardens
+    if (tags.leisure === 'botanical_garden' || tags['garden:type'] === 'botanical') return 'Botanical Garden';
+    if (tags.tourism === 'zoo') return 'Zoo';
+    if (tags.tourism === 'aquarium') return 'Aquarium';
+    if (tags.leisure === 'nature_reserve') return 'Nature Reserve';
+    if (tags.amenity === 'visitor_centre' || tags.information === 'visitor_centre') return 'Visitor Center';
     
-    // Exercise and wellness
+    // Health and wellness
+    if (tags.amenity === 'spa' || tags.leisure === 'spa') return 'Spa & Wellness';
+    if (tags.sport === 'yoga' || tags.leisure === 'yoga') return 'Yoga Studio';
+    if (tags.sport === 'pilates') return 'Pilates Studio';
     if (tags.leisure === 'dance') return 'Dance Studio';
-    if (tags.sport === 'yoga') return 'Yoga Studio';
     
-    // Workshops and maker spaces
-    if (tags.craft === 'artist' || tags.studio === 'artist') return 'Artist Studio';
+    // Creative spaces
+    if (tags.craft === 'artist') return 'Artist Studio';
     if (tags.craft === 'pottery') return 'Pottery Studio';
     if (tags.amenity === 'workshop') return 'Creative Workshop';
     
-    // Historic sites
+    // Historic
     if (tags.historic === 'museum') return 'Historic Museum';
     if (tags.tourism === 'attraction' && tags.historic === 'yes') return 'Historic Site';
-    if (tags.building === 'museum') return 'Museum Building';
     
     return 'Cultural Organization';
 }
 
 function extractWebsite(tags) {
-    return tags.website || 
-           tags['contact:website'] || 
-           tags.url || 
-           tags['contact:url'] || 
-           '';
+    return tags.website || tags['contact:website'] || tags.url || tags['contact:url'] || '';
 }
 
 function extractEmail(tags) {
-    return tags.email || 
-           tags['contact:email'] || 
-           '';
+    return tags.email || tags['contact:email'] || '';
 }
 
 function extractPhone(tags) {
-    return tags.phone || 
-           tags['contact:phone'] || 
-           tags['phone:US'] || 
-           tags['contact:mobile'] || 
-           '';
+    return tags.phone || tags['contact:phone'] || tags['phone:US'] || tags['contact:mobile'] || '';
 }
 
 function extractAddress(tags) {
     const parts = [];
-    
     if (tags['addr:housenumber']) parts.push(tags['addr:housenumber']);
     if (tags['addr:street']) parts.push(tags['addr:street']);
     if (tags['addr:city']) parts.push(tags['addr:city']);
@@ -418,6 +351,20 @@ function extractAddress(tags) {
     if (tags['addr:postcode']) parts.push(tags['addr:postcode']);
     
     return parts.join(', ') || tags['addr:full'] || '';
+}
+
+function generateContactPageUrl(website) {
+    if (!website) return '';
+    
+    const baseUrl = website.startsWith('http') ? website : `https://${website}`;
+    
+    try {
+        const url = new URL(baseUrl);
+        const base = url.origin + url.pathname.replace(/\/$/, '');
+        return base + '/contact';
+    } catch (e) {
+        return '';
+    }
 }
 
 function displayResults(organizations) {
@@ -458,7 +405,7 @@ function displayResults(organizations) {
         }
         row.appendChild(websiteCell);
         
-        // Contact cell
+        // Contact cell - prioritized display
         const contactCell = document.createElement('td');
         if (org.email) {
             const mailLink = document.createElement('a');
@@ -466,6 +413,14 @@ function displayResults(organizations) {
             mailLink.textContent = org.email;
             mailLink.className = 'table-link';
             contactCell.appendChild(mailLink);
+        } else if (org.contactPage) {
+            const contactLink = document.createElement('a');
+            contactLink.href = org.contactPage;
+            contactLink.textContent = 'Contact Page';
+            contactLink.className = 'table-link';
+            contactLink.target = '_blank';
+            contactLink.rel = 'noopener noreferrer';
+            contactCell.appendChild(contactLink);
         } else if (org.phone) {
             const phoneLink = document.createElement('a');
             phoneLink.href = `tel:${org.phone.replace(/[^\d+]/g, '')}`;
@@ -497,18 +452,22 @@ function getBadgeClass(type) {
     const map = {
         'Museum': 'type-museum',
         'Historic Museum': 'type-museum',
-        'Museum Building': 'type-museum',
         'Art Gallery': 'type-gallery',
-        'Outdoor Gallery': 'type-outdoor',
         'Theatre': 'type-theatre',
         'Arts Center': 'type-arts-centre',
         'Cultural Center': 'type-arts-centre',
         'Community Center': 'type-arts-centre',
         'Exhibition Center': 'type-arts-centre',
         'Library': 'type-library',
+        'Visitor Center': 'type-library',
         'Botanical Garden': 'type-garden',
-        'Dance Studio': 'type-wellness',
+        'Zoo': 'type-garden',
+        'Aquarium': 'type-garden',
+        'Nature Reserve': 'type-garden',
+        'Spa & Wellness': 'type-wellness',
         'Yoga Studio': 'type-wellness',
+        'Pilates Studio': 'type-wellness',
+        'Dance Studio': 'type-wellness',
         'Artist Studio': 'type-workshop',
         'Pottery Studio': 'type-workshop',
         'Creative Workshop': 'type-workshop',
@@ -528,30 +487,30 @@ function handleSort(column) {
     const sorted = [...currentResults].sort((a, b) => {
         let aVal, bVal;
         
-        // Special handling for different columns
         if (column === 'website') {
-            // Sort by presence of website first, then alphabetically
             aVal = a.website ? '0' + a.website : '1';
             bVal = b.website ? '0' + b.website : '1';
         } else if (column === 'contact') {
-            // Sort by presence of contact (email preferred over phone), then alphabetically
             if (a.email) {
                 aVal = '0' + a.email;
+            } else if (a.contactPage) {
+                aVal = '1' + a.contactPage;
             } else if (a.phone) {
-                aVal = '1' + a.phone;
+                aVal = '2' + a.phone;
             } else {
-                aVal = '2';
+                aVal = '3';
             }
             
             if (b.email) {
                 bVal = '0' + b.email;
+            } else if (b.contactPage) {
+                bVal = '1' + b.contactPage;
             } else if (b.phone) {
-                bVal = '1' + b.phone;
+                bVal = '2' + b.phone;
             } else {
-                bVal = '2';
+                bVal = '3';
             }
         } else {
-            // Normal string sorting for other columns
             aVal = String(a[column] || '');
             bVal = String(b[column] || '');
         }
@@ -560,11 +519,72 @@ function handleSort(column) {
         return currentSortDirection === 'asc' ? comparison : -comparison;
     });
     
-    // Update sort indicators
     updateSortIndicators();
-    
-    // Update the table body only (don't re-render entire results section)
     updateTableBody(sorted);
+}
+
+function updateTableBody(organizations) {
+    elements.resultsTbody.innerHTML = '';
+    
+    organizations.forEach(org => {
+        const row = document.createElement('tr');
+        
+        const nameCell = document.createElement('td');
+        nameCell.textContent = org.name;
+        row.appendChild(nameCell);
+        
+        const websiteCell = document.createElement('td');
+        if (org.website) {
+            const link = document.createElement('a');
+            link.href = org.website.startsWith('http') ? org.website : `https://${org.website}`;
+            link.textContent = 'Visit Website';
+            link.className = 'table-link';
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+            websiteCell.appendChild(link);
+        } else {
+            websiteCell.textContent = '-';
+        }
+        row.appendChild(websiteCell);
+        
+        const contactCell = document.createElement('td');
+        if (org.email) {
+            const mailLink = document.createElement('a');
+            mailLink.href = `mailto:${org.email}`;
+            mailLink.textContent = org.email;
+            mailLink.className = 'table-link';
+            contactCell.appendChild(mailLink);
+        } else if (org.contactPage) {
+            const contactLink = document.createElement('a');
+            contactLink.href = org.contactPage;
+            contactLink.textContent = 'Contact Page';
+            contactLink.className = 'table-link';
+            contactLink.target = '_blank';
+            contactLink.rel = 'noopener noreferrer';
+            contactCell.appendChild(contactLink);
+        } else if (org.phone) {
+            const phoneLink = document.createElement('a');
+            phoneLink.href = `tel:${org.phone.replace(/[^\d+]/g, '')}`;
+            phoneLink.textContent = org.phone;
+            phoneLink.className = 'table-link';
+            contactCell.appendChild(phoneLink);
+        } else {
+            contactCell.textContent = '-';
+        }
+        row.appendChild(contactCell);
+        
+        const typeCell = document.createElement('td');
+        const badge = document.createElement('span');
+        badge.className = `type-badge ${getBadgeClass(org.type)}`;
+        badge.textContent = org.type;
+        typeCell.appendChild(badge);
+        row.appendChild(typeCell);
+        
+        elements.resultsTbody.appendChild(row);
+    });
+    
+    elements.resultsCount.textContent = `${organizations.length} organization${organizations.length !== 1 ? 's' : ''} found`;
+    currentResults = organizations;
 }
 
 function updateSortIndicators() {
@@ -593,7 +613,7 @@ function resetSortIndicators() {
 function downloadCsv() {
     if (currentResults.length === 0) return;
     
-    const headers = ['Organization Name', 'Website', 'Email', 'Phone', 'Type', 'Address'];
+    const headers = ['Organization Name', 'Website', 'Email', 'Phone', 'Contact Page', 'Type', 'Address'];
     const rows = [headers.join(',')];
     
     currentResults.forEach(org => {
@@ -602,6 +622,7 @@ function downloadCsv() {
             escapeCsv(org.website),
             escapeCsv(org.email),
             escapeCsv(org.phone),
+            escapeCsv(org.contactPage),
             escapeCsv(org.type),
             escapeCsv(org.address)
         ];
