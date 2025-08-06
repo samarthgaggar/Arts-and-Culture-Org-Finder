@@ -6,60 +6,93 @@ let elements = {};
 
 // Initialize app
 document.addEventListener('DOMContentLoaded', () => {
+    console.log('DOM loaded, initializing...');
     initializeApp();
 });
 
 function initializeApp() {
+    console.log('Getting elements...');
+    
     // Get DOM elements
-    elements = {
-        locationInput: document.getElementById('location-input'),
-        radiusSlider: document.getElementById('radius-slider'),
-        radiusDisplay: document.getElementById('radius-display'),
-        searchBtn: document.getElementById('search-btn'),
-        resultsSection: document.getElementById('results-section'),
-        loadingContainer: document.getElementById('loading-container'),
-        errorMessage: document.getElementById('error-message'),
-        tableContainer: document.getElementById('table-container'),
-        resultsTbody: document.getElementById('results-tbody'),
-        resultsCount: document.getElementById('results-count'),
-        downloadCsvBtn: document.getElementById('download-csv')
-    };
+    elements.locationInput = document.getElementById('location-input');
+    elements.searchBtn = document.getElementById('search-btn');
+    elements.radiusSlider = document.getElementById('radius-slider');
+    elements.radiusDisplay = document.getElementById('radius-display');
+    elements.resultsSection = document.getElementById('results-section');
+    elements.loadingContainer = document.getElementById('loading-container');
+    elements.errorMessage = document.getElementById('error-message');
+    elements.tableContainer = document.getElementById('table-container');
+    elements.resultsTbody = document.getElementById('results-tbody');
+    elements.resultsCount = document.getElementById('results-count');
+    elements.downloadCsvBtn = document.getElementById('download-csv');
+
+    console.log('Elements found:', {
+        searchBtn: !!elements.searchBtn,
+        locationInput: !!elements.locationInput,
+        radiusSlider: !!elements.radiusSlider
+    });
 
     setupEventListeners();
     updateRadiusDisplay();
+    
+    console.log('App initialized successfully');
 }
 
 function setupEventListeners() {
-    elements.searchBtn?.addEventListener('click', handleSearch);
-    elements.locationInput?.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') handleSearch();
-    });
+    // Search button
+    if (elements.searchBtn) {
+        console.log('Setting up search button listener');
+        elements.searchBtn.addEventListener('click', function(e) {
+            console.log('Search button clicked');
+            e.preventDefault();
+            handleSearch();
+        });
+    }
+    
+    // Enter key on location input
+    if (elements.locationInput) {
+        elements.locationInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                console.log('Enter key pressed');
+                e.preventDefault();
+                handleSearch();
+            }
+        });
+    }
 
+    // Radius slider
     if (elements.radiusSlider) {
         elements.radiusSlider.addEventListener('input', updateRadiusDisplay);
         elements.radiusSlider.addEventListener('change', updateRadiusDisplay);
     }
 
+    // Download CSV button
+    if (elements.downloadCsvBtn) {
+        elements.downloadCsvBtn.addEventListener('click', downloadCsv);
+    }
+}
+
+function setupSortableHeaders() {
     document.querySelectorAll('.sortable').forEach(header => {
         header.addEventListener('click', () => handleSort(header.dataset.column));
     });
-
-    elements.downloadCsvBtn?.addEventListener('click', downloadCsv);
 }
 
 function updateRadiusDisplay() {
-    const slider = elements.radiusSlider;
-    const display = elements.radiusDisplay;
-    
-    if (slider && display) {
-        const value = slider.value;
-        display.textContent = `${value} km`;
+    if (elements.radiusSlider && elements.radiusDisplay) {
+        const value = elements.radiusSlider.value;
+        elements.radiusDisplay.textContent = `${value} km`;
     }
 }
 
 async function handleSearch() {
+    console.log('handleSearch called');
+    
     const location = elements.locationInput?.value?.trim();
+    console.log('Location input:', location);
+    
     if (!location) {
+        console.log('No location provided');
         showError('Please enter a location to search.');
         return;
     }
@@ -68,18 +101,17 @@ async function handleSearch() {
         showLoading('Finding location...');
         hideError();
         
-        // Step 1: Geocode the location
+        console.log('Starting geocoding...');
         const coords = await geocodeLocation(location);
         console.log('Location found:', coords);
         
-        // Step 2: Search for cultural organizations
         updateLoadingMessage('Searching for cultural, wellness, and nature organizations...');
-        const radius = parseInt(elements.radiusSlider?.value || 25) * 1000; // Convert to meters
-        const organizations = await searchCulturalOrganizations(coords, radius);
+        const radius = parseInt(elements.radiusSlider?.value || 25) * 1000;
+        console.log('Search radius:', radius);
         
+        const organizations = await searchCulturalOrganizations(coords, radius);
         console.log(`Found ${organizations.length} organizations`);
         
-        // Step 3: Process and display results
         currentResults = organizations;
         displayResults(currentResults);
         
@@ -121,27 +153,46 @@ async function searchCulturalOrganizations(coords, radiusMeters) {
             // Museums and galleries
             node["tourism"="museum"](around:${radiusMeters},${coords.lat},${coords.lon});
             way["tourism"="museum"](around:${radiusMeters},${coords.lat},${coords.lon});
-            
+
             node["tourism"="gallery"](around:${radiusMeters},${coords.lat},${coords.lon});
             way["tourism"="gallery"](around:${radiusMeters},${coords.lat},${coords.lon});
-            
+
             // Arts and cultural centers
             node["amenity"="arts_centre"](around:${radiusMeters},${coords.lat},${coords.lon});
             way["amenity"="arts_centre"](around:${radiusMeters},${coords.lat},${coords.lon});
-            
+
             node["amenity"="theatre"](around:${radiusMeters},${coords.lat},${coords.lon});
             way["amenity"="theatre"](around:${radiusMeters},${coords.lat},${coords.lon});
-            
+
             node["amenity"="library"]["library:type"!="academic"](around:${radiusMeters},${coords.lat},${coords.lon});
             way["amenity"="library"]["library:type"!="academic"](around:${radiusMeters},${coords.lat},${coords.lon});
-            
+
             node["amenity"="community_centre"](around:${radiusMeters},${coords.lat},${coords.lon});
             way["amenity"="community_centre"](around:${radiusMeters},${coords.lat},${coords.lon});
-            
-            // Gardens and nature (only managed facilities with contact info)
+
+            // Botanical gardens and specialized gardens
             node["leisure"="botanical_garden"](around:${radiusMeters},${coords.lat},${coords.lon});
             way["leisure"="botanical_garden"](around:${radiusMeters},${coords.lat},${coords.lon});
             
+            node["garden:type"="botanical"](around:${radiusMeters},${coords.lat},${coords.lon});
+            way["garden:type"="botanical"](around:${radiusMeters},${coords.lat},${coords.lon});
+            
+            node["garden:type"="rose"](around:${radiusMeters},${coords.lat},${coords.lon});
+            way["garden:type"="rose"](around:${radiusMeters},${coords.lat},${coords.lon});
+            
+            node["garden:type"="japanese"](around:${radiusMeters},${coords.lat},${coords.lon});
+            way["garden:type"="japanese"](around:${radiusMeters},${coords.lat},${coords.lon});
+            
+            node["garden:type"="herb"](around:${radiusMeters},${coords.lat},${coords.lon});
+            way["garden:type"="herb"](around:${radiusMeters},${coords.lat},${coords.lon});
+            
+            node["garden:type"="sculpture"](around:${radiusMeters},${coords.lat},${coords.lon});
+            way["garden:type"="sculpture"](around:${radiusMeters},${coords.lat},${coords.lon});
+            
+            node["leisure"="garden"]["garden:type"](around:${radiusMeters},${coords.lat},${coords.lon});
+            way["leisure"="garden"]["garden:type"](around:${radiusMeters},${coords.lat},${coords.lon});
+            
+            // Nature centers and wildlife facilities
             node["tourism"="zoo"](around:${radiusMeters},${coords.lat},${coords.lon});
             way["tourism"="zoo"](around:${radiusMeters},${coords.lat},${coords.lon});
             
@@ -156,6 +207,44 @@ async function searchCulturalOrganizations(coords, radiusMeters) {
             
             node["information"="visitor_centre"](around:${radiusMeters},${coords.lat},${coords.lon});
             way["information"="visitor_centre"](around:${radiusMeters},${coords.lat},${coords.lon});
+            
+            node["leisure"="wildlife_hide"](around:${radiusMeters},${coords.lat},${coords.lon});
+            way["leisure"="wildlife_hide"](around:${radiusMeters},${coords.lat},${coords.lon});
+            
+            // Arboretums and tree collections
+            node["landuse"="arboretum"](around:${radiusMeters},${coords.lat},${coords.lon});
+            way["landuse"="arboretum"](around:${radiusMeters},${coords.lat},${coords.lon});
+            
+            node["leisure"="arboretum"](around:${radiusMeters},${coords.lat},${coords.lon});
+            way["leisure"="arboretum"](around:${radiusMeters},${coords.lat},${coords.lon});
+            
+            // Conservatories and greenhouses
+            node["building"="conservatory"](around:${radiusMeters},${coords.lat},${coords.lon});
+            way["building"="conservatory"](around:${radiusMeters},${coords.lat},${coords.lon});
+            
+            node["greenhouse"="yes"]["tourism"](around:${radiusMeters},${coords.lat},${coords.lon});
+            way["greenhouse"="yes"]["tourism"](around:${radiusMeters},${coords.lat},${coords.lon});
+            
+            // Managed parks with facilities
+            node["leisure"="park"]["operator"]["website"](around:${radiusMeters},${coords.lat},${coords.lon});
+            way["leisure"="park"]["operator"]["website"](around:${radiusMeters},${coords.lat},${coords.lon});
+            
+            node["leisure"="park"]["tourism"="attraction"](around:${radiusMeters},${coords.lat},${coords.lon});
+            way["leisure"="park"]["tourism"="attraction"](around:${radiusMeters},${coords.lat},${coords.lon});
+            
+            // Environmental education centers
+            node["amenity"="education_centre"]["education:type"="environmental"](around:${radiusMeters},${coords.lat},${coords.lon});
+            way["amenity"="education_centre"]["education:type"="environmental"](around:${radiusMeters},${coords.lat},${coords.lon});
+            
+            node["amenity"="education_centre"]["education:type"="nature"](around:${radiusMeters},${coords.lat},${coords.lon});
+            way["amenity"="education_centre"]["education:type"="nature"](around:${radiusMeters},${coords.lat},${coords.lon});
+            
+            // Observatory and planetarium
+            node["man_made"="observatory"](around:${radiusMeters},${coords.lat},${coords.lon});
+            way["man_made"="observatory"](around:${radiusMeters},${coords.lat},${coords.lon});
+            
+            node["amenity"="planetarium"](around:${radiusMeters},${coords.lat},${coords.lon});
+            way["amenity"="planetarium"](around:${radiusMeters},${coords.lat},${coords.lon});
             
             // Health and wellness
             node["leisure"="spa"](around:${radiusMeters},${coords.lat},${coords.lon});
@@ -261,37 +350,44 @@ function isExcluded(tags, name) {
         'conference_centre', 'shop', 'marketplace', 'supermarket', 'mall',
         'concert_hall', 'music_venue', 'events_venue', 'dojo'
     ];
-    
+
     const excludedWords = [
         'university', 'college', 'school', 'academy', 'institute', 'campus',
         'student', 'retail', 'shop', 'store', 'boutique', 'mall', 'market',
         'concert', 'symphony', 'philharmonic'
     ];
-    
+
     // Check amenity type
     if (excludedAmenities.includes(tags.amenity)) return true;
-    
+
     // Check if it's a shop
     if (tags.shop) return true;
-    
+
     // Check building type
     if (tags.building === 'university' || tags.building === 'college' || tags.building === 'retail') return true;
-    
+
     // Check name
     const nameLower = name.toLowerCase();
     if (excludedWords.some(word => nameLower.includes(word))) return true;
-    
+
     // Check if it's a library at a school
     if (tags.amenity === 'library' && tags['library:type'] === 'academic') return true;
+
+    // Exclude generic parks without facilities - but allow managed parks with operators/websites
+    if (tags.leisure === 'park' && !tags.operator && !tags.website && !tags.tourism) return true;
     
-    // Exclude generic parks without facilities
-    if (tags.leisure === 'park' && !tags.operator && !tags.website) return true;
-    if (tags.leisure === 'garden' && !tags.operator && !tags.website && tags['garden:type'] !== 'botanical') return true;
+    // Only exclude nature reserves without visitor centers
     if (tags.leisure === 'nature_reserve' && tags.visitor_centre !== 'yes') return true;
-    
+
     // Exclude bars and nightclubs
     if (tags.amenity === 'nightclub' || tags.amenity === 'bar' || tags.amenity === 'pub') return true;
-    
+
+    // Don't exclude gardens, arboretums, conservatories, or observatories
+    if (tags.leisure === 'botanical_garden' || tags.leisure === 'garden' || 
+        tags.leisure === 'arboretum' || tags.landuse === 'arboretum' ||
+        tags['garden:type'] || tags.building === 'conservatory' ||
+        tags.man_made === 'observatory' || tags.amenity === 'planetarium') return false;
+
     return false;
 }
 
@@ -305,12 +401,38 @@ function getOrgType(tags) {
     if (tags.amenity === 'exhibition_centre') return 'Exhibition Center';
     if (tags.amenity === 'cultural_centre') return 'Cultural Center';
     
-    // Nature and gardens
+    // Botanical gardens and specialized gardens
     if (tags.leisure === 'botanical_garden' || tags['garden:type'] === 'botanical') return 'Botanical Garden';
+    if (tags['garden:type'] === 'rose') return 'Rose Garden';
+    if (tags['garden:type'] === 'japanese') return 'Japanese Garden';
+    if (tags['garden:type'] === 'herb') return 'Herb Garden';
+    if (tags['garden:type'] === 'sculpture') return 'Sculpture Garden';
+    if (tags.leisure === 'garden' && tags['garden:type']) return 'Specialty Garden';
+    
+    // Nature and wildlife
     if (tags.tourism === 'zoo') return 'Zoo';
     if (tags.tourism === 'aquarium') return 'Aquarium';
     if (tags.leisure === 'nature_reserve') return 'Nature Reserve';
     if (tags.amenity === 'visitor_centre' || tags.information === 'visitor_centre') return 'Visitor Center';
+    if (tags.leisure === 'wildlife_hide') return 'Wildlife Viewing';
+    
+    // Arboretums and tree collections
+    if (tags.landuse === 'arboretum' || tags.leisure === 'arboretum') return 'Arboretum';
+    
+    // Conservatories and greenhouses
+    if (tags.building === 'conservatory') return 'Conservatory';
+    if (tags.greenhouse === 'yes' && tags.tourism) return 'Greenhouse & Gardens';
+    
+    // Managed parks
+    if (tags.leisure === 'park' && (tags.operator || tags.website || tags.tourism === 'attraction')) return 'Public Garden & Park';
+    
+    // Educational centers
+    if (tags.amenity === 'education_centre' && 
+        (tags['education:type'] === 'environmental' || tags['education:type'] === 'nature')) return 'Environmental Education Center';
+    
+    // Observatory and planetarium
+    if (tags.man_made === 'observatory') return 'Observatory';
+    if (tags.amenity === 'planetarium') return 'Planetarium';
     
     // Health and wellness
     if (tags.amenity === 'spa' || tags.leisure === 'spa') return 'Spa & Wellness';
@@ -368,6 +490,8 @@ function generateContactPageUrl(website) {
 }
 
 function displayResults(organizations) {
+    console.log('Displaying results:', organizations.length);
+    
     elements.resultsSection.style.display = 'block';
     elements.resultsCount.textContent = `${organizations.length} organization${organizations.length !== 1 ? 's' : ''} found`;
     
@@ -404,7 +528,7 @@ function displayResults(organizations) {
             websiteCell.textContent = '-';
         }
         row.appendChild(websiteCell);
-        
+
         // Contact cell - prioritized display
         const contactCell = document.createElement('td');
         if (org.email) {
@@ -431,7 +555,7 @@ function displayResults(organizations) {
             contactCell.textContent = '-';
         }
         row.appendChild(contactCell);
-        
+
         // Type cell
         const typeCell = document.createElement('td');
         const badge = document.createElement('span');
@@ -446,6 +570,9 @@ function displayResults(organizations) {
     elements.tableContainer.style.display = 'block';
     elements.downloadCsvBtn.disabled = false;
     resetSortIndicators();
+    
+    // Re-setup sortable headers after table is displayed
+    setupSortableHeaders();
 }
 
 function getBadgeClass(type) {
@@ -460,17 +587,42 @@ function getBadgeClass(type) {
         'Exhibition Center': 'type-arts-centre',
         'Library': 'type-library',
         'Visitor Center': 'type-library',
+        
+        // Gardens and nature
         'Botanical Garden': 'type-garden',
-        'Zoo': 'type-garden',
-        'Aquarium': 'type-garden',
-        'Nature Reserve': 'type-garden',
+        'Rose Garden': 'type-garden',
+        'Japanese Garden': 'type-garden', 
+        'Herb Garden': 'type-garden',
+        'Sculpture Garden': 'type-garden',
+        'Specialty Garden': 'type-garden',
+        'Arboretum': 'type-garden',
+        'Conservatory': 'type-garden',
+        'Greenhouse & Gardens': 'type-garden',
+        'Public Garden & Park': 'type-outdoor',
+        
+        // Wildlife and nature
+        'Zoo': 'type-outdoor',
+        'Aquarium': 'type-outdoor',
+        'Nature Reserve': 'type-outdoor',
+        'Wildlife Viewing': 'type-outdoor',
+        'Environmental Education Center': 'type-outdoor',
+        
+        // Science and astronomy
+        'Observatory': 'type-museum',
+        'Planetarium': 'type-museum',
+        
+        // Wellness
         'Spa & Wellness': 'type-wellness',
         'Yoga Studio': 'type-wellness',
         'Pilates Studio': 'type-wellness',
         'Dance Studio': 'type-wellness',
+        
+        // Creative
         'Artist Studio': 'type-workshop',
         'Pottery Studio': 'type-workshop',
         'Creative Workshop': 'type-workshop',
+        
+        // Historic
         'Historic Site': 'type-historic'
     };
     return map[type] || 'type-other';
@@ -483,10 +635,10 @@ function handleSort(column) {
         currentSortColumn = column;
         currentSortDirection = 'asc';
     }
-    
+
     const sorted = [...currentResults].sort((a, b) => {
         let aVal, bVal;
-        
+
         if (column === 'website') {
             aVal = a.website ? '0' + a.website : '1';
             bVal = b.website ? '0' + b.website : '1';
@@ -500,7 +652,7 @@ function handleSort(column) {
             } else {
                 aVal = '3';
             }
-            
+
             if (b.email) {
                 bVal = '0' + b.email;
             } else if (b.contactPage) {
@@ -514,11 +666,11 @@ function handleSort(column) {
             aVal = String(a[column] || '');
             bVal = String(b[column] || '');
         }
-        
+
         const comparison = aVal.localeCompare(bVal);
         return currentSortDirection === 'asc' ? comparison : -comparison;
     });
-    
+
     updateSortIndicators();
     updateTableBody(sorted);
 }

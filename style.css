@@ -217,8 +217,6 @@ main {
   box-shadow: var(--shadow-colored);
 }
 
-
-
 /* Form Elements */
 .form-group {
   margin-bottom: var(--spacing-xl);
@@ -663,7 +661,7 @@ main {
   color: var(--primary-color);
 }
 
-/* Type Badges - Updated for new venue types */
+/* Type Badges - Enhanced with distinct styling */
 .type-badge {
   display: inline-flex;
   align-items: center;
@@ -675,76 +673,90 @@ main {
   letter-spacing: 0.05em;
   border: 2px solid;
   transition: all var(--transition-fast);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
+/* Museums & Education */
 .type-museum {
-  background: #DBEAFE;
+  background: linear-gradient(135deg, #DBEAFE, #BFDBFE);
   color: #1E40AF;
-  border-color: #60A5FA;
+  border-color: #3B82F6;
 }
 
+/* Art Galleries */
 .type-gallery {
-  background: #F3E8FF;
+  background: linear-gradient(135deg, #F3E8FF, #E9D5FF);
   color: #6B21A8;
-  border-color: #C084FC;
+  border-color: #8B5CF6;
 }
 
+/* Theatres */
 .type-theatre {
-  background: #FCE7F3;
+  background: linear-gradient(135deg, #FCE7F3, #FBCFE8);
   color: #A21CAF;
-  border-color: #F9A8D4;
+  border-color: #EC4899;
 }
 
+/* Libraries */
 .type-library {
-  background: #D1FAE5;
+  background: linear-gradient(135deg, #D1FAE5, #A7F3D0);
   color: #065F46;
-  border-color: #6EE7B7;
+  border-color: #10B981;
 }
 
+/* Arts Centers */
 .type-arts-centre {
-  background: #FED7AA;
+  background: linear-gradient(135deg, #FED7AA, #FDBA74);
   color: #C2410C;
-  border-color: #FDBA74;
+  border-color: #F97316;
 }
 
+/* Gardens & Botanical */
 .type-garden {
-  background: #DCFCE7;
-  color: #166534;
-  border-color: #86EFAC;
+  background: linear-gradient(135deg, #DCFCE7, #BBF7D0);
+  color: #14532D;
+  border-color: #22C55E;
 }
 
+/* Outdoor & Nature */
 .type-outdoor {
-  background: #CFFAFE;
+  background: linear-gradient(135deg, #CFFAFE, #A5F3FC);
   color: #155E75;
-  border-color: #67E8F9;
+  border-color: #0891B2;
 }
 
+/* Wellness */
 .type-wellness {
-  background: #E0E7FF;
+  background: linear-gradient(135deg, #E0E7FF, #C7D2FE);
   color: #3730A3;
-  border-color: #A5B4FC;
+  border-color: #6366F1;
 }
 
+/* Workshops */
 .type-workshop {
-  background: #FEF3C7;
+  background: linear-gradient(135deg, #FEF3C7, #FDE68A);
   color: #92400E;
-  border-color: #FCD34D;
+  border-color: #F59E0B;
 }
 
+/* Historic */
 .type-historic {
-  background: #FFE4E6;
+  background: linear-gradient(135deg, #FFE4E6, #FECDD3);
   color: #881337;
-  border-color: #FDA4AF;
+  border-color: #F43F5E;
 }
 
+/* Other */
 .type-other {
-  background: var(--gray-100);
+  background: linear-gradient(135deg, var(--gray-100), var(--gray-200));
   color: var(--gray-700);
-  border-color: var(--gray-300);
+  border-color: var(--gray-400);
 }
 
+/* Hover Effects */
 .type-badge:hover {
   transform: scale(1.05);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 /* Links */
@@ -813,10 +825,6 @@ main {
   .search-card,
   .results-section {
     padding: var(--spacing-lg);
-  }
-  
-  @media (max-width: 768px) {
-    display: none;
   }
   
   .results-header {
