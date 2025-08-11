@@ -146,6 +146,210 @@ async function geocodeLocation(location) {
     }
 }
 
+// Fast contact page finder using CORS proxy
+async function findContactPageFast(website) {
+    if (!website) return '';
+    
+    const baseUrl = website.startsWith('http') ? website : `https://${website}`;
+    
+    try {
+        // Use AllOrigins CORS proxy to fetch the page content
+        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(baseUrl)}`;
+        
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 4000); // 4 second timeout
+        
+        const response = await fetch(proxyUrl, {
+            signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
+        
+        if (!response.ok) {
+            throw new Error('Failed to fetch page');
+        }
+        
+        const data = await response.json();
+        const htmlContent = data.contents;
+        
+        if (!htmlContent) {
+            throw new Error('No content received');
+        }
+        
+        // Parse HTML and find contact links
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(htmlContent, 'text/html');
+        
+        // Look for contact links with various strategies
+        const contactUrl = findContactLinkInHTML(doc, baseUrl);
+        
+        return contactUrl;
+        
+    } catch (error) {
+        console.warn('Error fetching contact page for', website, ':', error.message);
+        return '';
+    }
+}
+
+// Smart contact link finder in HTML
+function findContactLinkInHTML(doc, baseUrl) {
+    try {
+        const urlObj = new URL(baseUrl);
+        const domain = urlObj.origin;
+        
+        // Strategy 1: Look for navigation links with contact keywords
+        const navSelectors = [
+            'nav a', 'header a', '.menu a', '.navigation a', 
+            '.navbar a', '.nav a', '.main-nav a', '.primary-nav a'
+        ];
+        
+        for (const selector of navSelectors) {
+            const links = doc.querySelectorAll(selector);
+            for (const link of links) {
+                const text = link.textContent?.trim().toLowerCase() || '';
+                const href = link.getAttribute('href');
+                
+                if (!href) continue;
+                
+                // Check for contact-related text
+                if (text.includes('contact') || text.includes('reach') || 
+                    text.includes('touch') || text.includes('connect')) {
+                    
+                    const fullUrl = makeAbsoluteUrl(href, domain);
+                    if (fullUrl && isValidContactUrl(fullUrl, text)) {
+                        return fullUrl;
+                    }
+                }
+            }
+        }
+        
+        // Strategy 2: Look for any links with contact in href
+        const allLinks = doc.querySelectorAll('a[href*="contact"], a[href*="Contact"]');
+        for (const link of allLinks) {
+            const href = link.getAttribute('href');
+            const text = link.textContent?.trim().toLowerCase() || '';
+            
+            if (href) {
+                const fullUrl = makeAbsoluteUrl(href, domain);
+                if (fullUrl && isValidContactUrl(fullUrl, text)) {
+                    return fullUrl;
+                }
+            }
+        }
+        
+        // Strategy 3: Look for footer contact links
+        const footerSelectors = ['footer a', '.footer a', '.site-footer a'];
+        for (const selector of footerSelectors) {
+            const links = doc.querySelectorAll(selector);
+            for (const link of links) {
+                const text = link.textContent?.trim().toLowerCase() || '';
+                const href = link.getAttribute('href');
+                
+                if (!href) continue;
+                
+                if (text.includes('contact')) {
+                    const fullUrl = makeAbsoluteUrl(href, domain);
+                    if (fullUrl && isValidContactUrl(fullUrl, text)) {
+                        return fullUrl;
+                    }
+                }
+            }
+        }
+        
+        return '';
+        
+    } catch (error) {
+        console.warn('Error parsing HTML for contact links:', error);
+        return '';
+    }
+}
+
+// Convert relative URLs to absolute URLs
+function makeAbsoluteUrl(href, domain) {
+    try {
+        if (href.startsWith('http')) {
+            return href;
+        } else if (href.startsWith('/')) {
+            return domain + href;
+        } else if (href.startsWith('./')) {
+            return domain + '/' + href.substring(2);
+        } else if (!href.startsWith('#') && !href.startsWith('mailto:') && !href.startsWith('tel:')) {
+            return domain + '/' + href;
+        }
+        return '';
+    } catch (error) {
+        return '';
+    }
+}
+
+// Validate if this looks like a real contact URL
+function isValidContactUrl(url, linkText) {
+    try {
+        const urlObj = new URL(url);
+        const path = urlObj.pathname.toLowerCase();
+        const text = linkText.toLowerCase();
+        
+        // Exclude non-contact links
+        if (text.includes('contractor') || text.includes('contracts') || 
+            text.includes('contact lens') || text.includes('contact sport')) {
+            return false;
+        }
+        
+        // Must contain contact-related terms
+        return path.includes('contact') || text.includes('contact') || 
+               text.includes('reach') || text.includes('touch') || text.includes('connect');
+               
+    } catch {
+        return false;
+    }
+}
+
+// Fast batch processing with concurrent requests
+async function processContactPagesFast(organizations) {
+    const orgsWithWebsites = organizations.filter(org => org.website && !org.contactPage);
+    
+    if (orgsWithWebsites.length === 0) {
+        return organizations;
+    }
+    
+    console.log(`Finding contact pages for ${orgsWithWebsites.length} organizations...`);
+    updateLoadingMessage(`Finding contact pages... (0/${orgsWithWebsites.length})`);
+    
+    // Process in larger concurrent batches for speed
+    const batchSize = 8;
+    let processed = 0;
+    
+    for (let i = 0; i < orgsWithWebsites.length; i += batchSize) {
+        const batch = orgsWithWebsites.slice(i, i + batchSize);
+        
+        // Process batch concurrently
+        const promises = batch.map(async (org) => {
+            try {
+                const contactPage = await findContactPageFast(org.website);
+                if (contactPage) {
+                    org.contactPage = contactPage;
+                    console.log(`Found contact page for ${org.name}: ${contactPage}`);
+                }
+            } catch (error) {
+                console.warn(`Failed to find contact for ${org.name}:`, error.message);
+            }
+            return org;
+        });
+        
+        await Promise.allSettled(promises);
+        
+        processed += batch.length;
+        updateLoadingMessage(`Finding contact pages... (${processed}/${orgsWithWebsites.length})`);
+        
+        // Small delay between batches to be respectful
+        if (i + batchSize < orgsWithWebsites.length) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+        }
+    }
+    
+    return organizations;
+}
+
 async function searchCulturalOrganizations(coords, radiusMeters) {
     const query = `
         [out:json][timeout:30];
@@ -327,7 +531,7 @@ async function searchCulturalOrganizations(coords, radiusMeters) {
                 website: website,
                 email: extractEmail(element.tags),
                 phone: extractPhone(element.tags),
-                contactPage: website ? generateContactPageUrl(website) : '',
+                contactPage: '', // Will be populated by fast detection
                 address: extractAddress(element.tags),
                 lat: element.lat || element.center?.lat,
                 lon: element.lon || element.center?.lon
@@ -336,7 +540,11 @@ async function searchCulturalOrganizations(coords, radiusMeters) {
             organizations.push(org);
         });
         
-        return organizations;
+        // Fast contact page detection
+        updateLoadingMessage('Finding contact pages...');
+        const orgsWithContactPages = await processContactPagesFast(organizations);
+        
+        return orgsWithContactPages;
         
     } catch (error) {
         console.error('Search error:', error);
@@ -475,20 +683,6 @@ function extractAddress(tags) {
     return parts.join(', ') || tags['addr:full'] || '';
 }
 
-function generateContactPageUrl(website) {
-    if (!website) return '';
-    
-    const baseUrl = website.startsWith('http') ? website : `https://${website}`;
-    
-    try {
-        const url = new URL(baseUrl);
-        const base = url.origin + url.pathname.replace(/\/$/, '');
-        return base + '/contact';
-    } catch (e) {
-        return '';
-    }
-}
-
 function displayResults(organizations) {
     console.log('Displaying results:', organizations.length);
     
@@ -529,7 +723,7 @@ function displayResults(organizations) {
         }
         row.appendChild(websiteCell);
 
-        // Contact cell - prioritized display
+        // Contact cell - prioritized display with verified contact pages
         const contactCell = document.createElement('td');
         if (org.email) {
             const mailLink = document.createElement('a');
@@ -545,6 +739,15 @@ function displayResults(organizations) {
             contactLink.target = '_blank';
             contactLink.rel = 'noopener noreferrer';
             contactCell.appendChild(contactLink);
+            
+            // Add verified indicator for found contact pages
+            const verifiedIcon = document.createElement('i');
+            verifiedIcon.className = 'fas fa-check-circle';
+            verifiedIcon.style.color = '#10B981';
+            verifiedIcon.style.marginLeft = '4px';
+            verifiedIcon.style.fontSize = '0.8em';
+            verifiedIcon.title = 'Found on website';
+            contactCell.appendChild(verifiedIcon);
         } else if (org.phone) {
             const phoneLink = document.createElement('a');
             phoneLink.href = `tel:${org.phone.replace(/[^\d+]/g, '')}`;
@@ -714,6 +917,15 @@ function updateTableBody(organizations) {
             contactLink.target = '_blank';
             contactLink.rel = 'noopener noreferrer';
             contactCell.appendChild(contactLink);
+            
+            // Add verified indicator
+            const verifiedIcon = document.createElement('i');
+            verifiedIcon.className = 'fas fa-check-circle';
+            verifiedIcon.style.color = '#10B981';
+            verifiedIcon.style.marginLeft = '4px';
+            verifiedIcon.style.fontSize = '0.8em';
+            verifiedIcon.title = 'Found on website';
+            contactCell.appendChild(verifiedIcon);
         } else if (org.phone) {
             const phoneLink = document.createElement('a');
             phoneLink.href = `tel:${org.phone.replace(/[^\d+]/g, '')}`;
