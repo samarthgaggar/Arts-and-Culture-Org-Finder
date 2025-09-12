@@ -15,8 +15,8 @@ A web-based tool that lets you search for arts, culture, and educational organiz
 
 - Clone the repository:
   ```bash
-  git clone https://github.com/samarthgaggar/ArtPharmacyOrgFinder.git
-  cd ArtPharmacyOrgFinder
+  git clone https://github.com/samarthgaggar/Arts-and-Culture-Org-Finder.git
+  cd Arts-and-Culture-Org-Finder
   ```
 - Open `index.html` in your web browser. No setup needed.
 
