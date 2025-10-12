@@ -41,6 +41,7 @@ A web-based tool that lets you search for arts, culture, and educational organiz
 
 - If you find no results, try searching a larger city or increase the search radius.
 - If experience API/network errors, Overpass or Nominatim services may be rate-limited—wait a few minutes, then retry.
+- Currently, some of the contact info isn't working, this will be updated soon.
 
 ## Credits
 
