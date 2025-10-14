@@ -1,6 +1,6 @@
 # Arts and Cultures Org Finder
 
-A web-based tool that lets you search for arts, culture, and educational organizations (such as museums, galleries, art centers, botanical gardens,theatres, etc.) near your chosen location. Combines accessibility, performance, and ease of use.
+A web-based tool that lets you search for arts, culture, and educational organizations (such as museums, galleries, art centers, botanical gardens, theatres, etc.) near your chosen location. Combines accessibility, performance, and ease of use.
 
 ## Features
 
