@@ -138,8 +138,6 @@
             </div>
         </section>
     </main>
-
-    <!-- Footer -->
     <footer class="footer">
         <div class="container">
             <p>
@@ -151,12 +149,9 @@
         </div>
     </footer>
 
-    <!-- Scripts -->
     <script src="app.js"></script>
     <script>
-        // Enhanced interactivity
         document.addEventListener('DOMContentLoaded', () => {
-            // Range slider with dynamic gradient
             const slider = document.getElementById('radius-slider');
             const display = document.getElementById('radius-display');
             
@@ -167,7 +162,6 @@
                     slider.style.setProperty('--value', percentage + '%');
                     display.textContent = value + ' km';
                 };
-                
                 slider.addEventListener('input', updateSlider);
                 updateSlider();
             }
