@@ -1,4 +1,3 @@
-// Global variables
 let currentResults = [];
 let currentSortColumn = null;
 let currentSortDirection = 'asc';
